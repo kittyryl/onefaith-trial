@@ -29,7 +29,6 @@ export default function SidebarNav() {
     <>
       <nav className="flex-1 px-4 space-y-2">
         {navItems.map((item) => {
-          // Check if the current pathname matches the item's href
           const isActive = pathname === item.href;
           const Icon = item.icon;
 
@@ -39,10 +38,10 @@ export default function SidebarNav() {
               href={item.href}
               className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
                 isActive
-                  ? item.isPos // POS links use blue, others use dark gray
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-700 text-white"
-                  : "hover:bg-gray-700 text-gray-300"
+                  ? item.isPos // POS links get the Coffee Brown accent
+                    ? "bg-amber-900 text-white"
+                    : "bg-gray-700 text-white" // Admin links use a neutral dark gray
+                  : "hover:bg-amber-900 hover:text-white text-gray-300" // Hover is Coffee Brown
               }`}
             >
               <Icon size={20} />
@@ -52,7 +51,7 @@ export default function SidebarNav() {
         })}
       </nav>
 
-      {/* Settings link (kept separate as it's at the bottom) */}
+      {/* Settings link */}
       <div className="p-4 border-t border-gray-700">
         <Link
           href="/settings"

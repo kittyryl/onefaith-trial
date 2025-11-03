@@ -13,6 +13,7 @@ import {
   LuPrinter, // Added for the receipt
 } from "react-icons/lu";
 import { toast } from "react-toastify";
+import { v4 as uuidv4 } from "uuid";
 
 // ----- (Interfaces: Product, CartItem) -----
 // (These remain the same)
@@ -45,6 +46,7 @@ interface OrderDetails {
   payment: "Cash" | "Gcash";
   cashTendered: number | null; // <-- ADD THIS
   changeDue: number | null; // <-- ADD THIS
+  discount_type: "Senior" | "PWD" | "Employee" | null;
 }
 
 interface TempSelectionModalProps {
@@ -277,7 +279,7 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
         </div>
         <button
           onClick={onClose}
-          className="w-full bg-gray-900 text-white p-4 rounded-lg font-bold cursor-pointer"
+          className="w-full bg-emerald-600 text-white p-3 rounded-lg font-bold cursor-pointer"
         >
           Start New Order
         </button>
@@ -392,7 +394,7 @@ function PaymentModal({
         {/* Action Buttons */}
         <button
           onClick={handleSubmit}
-          className="w-full bg-green-500 text-white p-3 rounded-lg font-bold text-lg cursor-pointer"
+          className="w-full bg-emerald-600 text-white p-3 rounded-lg font-bold text-lg cursor-pointer"
         >
           Confirm Payment
         </button>
@@ -457,7 +459,7 @@ export default function PosPage() {
     if (existingItem) {
       handleIncrementQuantity(existingItem.cartId);
     } else {
-      const cartItemId = crypto.randomUUID();
+      const cartItemId = uuidv4();
       const newItem: CartItem = {
         cartId: cartItemId,
         id: product.id,
@@ -471,6 +473,33 @@ export default function PosPage() {
 
     setIsModalOpen(false);
     setProductForModal(null);
+  };
+
+  const submitOrderToAPI = async (orderDetails: OrderDetails) => {
+    const payload = {
+      orderDetails: orderDetails,
+      businessUnit: "Coffee", // Correctly identifies the source
+    };
+
+    try {
+      const response = await fetch("http://192.168.1.4:5000/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server responded with status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      toast.success(`Order ${result.orderId} Saved!`);
+      return result;
+    } catch (error) {
+      console.error("API Submission Error:", error);
+      toast.error("Failed to save order to database.");
+      return null;
+    }
   };
 
   const handleIncrementQuantity = (cartId: string) => {
@@ -523,8 +552,9 @@ export default function PosPage() {
   // ... (inside your PosPage component)
 
   // ----- UPDATED: Proceed to Payment Function -----
-  const handleProceedToPayment = () => {
-    // 1. Validation Checks (with toasts)
+  const handleProceedToPayment = async () => {
+    // ADD ASYNC HERE
+    // 1. Validation Checks (remain the same)
     if (cart.length === 0) {
       toast.error("Cannot proceed: The cart is empty.");
       return;
@@ -538,33 +568,40 @@ export default function PosPage() {
       return;
     }
 
-    // 2. Check Payment Method and open the correct modal
-    if (paymentMethod === "Gcash") {
-      // Gcash: Go straight to the receipt
-      const orderDetails: OrderDetails = {
-        orderId: `ORD-${crypto.randomUUID().slice(0, 8)}`,
-        items: cart,
-        subtotal: subtotal,
-        discount: discount,
-        total: total,
-        type: orderType,
-        payment: paymentMethod,
-        cashTendered: null, // No cash was tendered
-        changeDue: null, // No change
-      };
+    const baseOrder: OrderDetails = {
+      // ... (define the order structure as before)
+      orderId: `ORD-${uuidv4().slice(0, 8)}`,
+      items: cart,
+      subtotal: subtotal,
+      discount: discount,
+      total: total,
+      type: orderType,
+      payment: paymentMethod,
+      discount_type: discountType,
+      cashTendered: null,
+      changeDue: null,
+    };
 
-      setCompletedOrder(orderDetails);
-      setIsReceiptModalOpen(true);
+    // 2. Decide if it's Cash (open numpad) or Gcash (submit immediately)
+    if (paymentMethod === "Gcash") {
+      // Submit the order to the API before showing the receipt
+      const submissionResult = await submitOrderToAPI(baseOrder); // AWAIT HERE
+
+      if (submissionResult) {
+        // Only show the receipt if the database save was successful
+        setCompletedOrder(baseOrder);
+        setIsReceiptModalOpen(true);
+      }
     } else if (paymentMethod === "Cash") {
-      // Cash: Open the numpad modal
+      // Open the numpad modal
       setIsPaymentModalOpen(true);
     }
   };
-
   // ----- NEW: Handler for Closing the Receipt -----
   const handleCloseReceipt = () => {
     setIsReceiptModalOpen(false); // Close modal
     clearCart(); // Clear cart
+    setDiscountType(null);
     setOrderType(null); // Reset options
     setPaymentMethod(null);
     setCompletedOrder(null); // Clear the completed order
@@ -599,23 +636,30 @@ export default function PosPage() {
             setIsPaymentModalOpen(false); // Close the modal
             setCashTendered(""); // Clear the cash input
           }}
-          onSubmit={(cashAmount) => {
+          onSubmit={async (cashAmount) => {
+            // ADD ASYNC HERE
             const orderDetails: OrderDetails = {
-              orderId: `ORD-${crypto.randomUUID().slice(0, 8)}`,
+              orderId: `ORD-${uuidv4().slice(0, 8)}`,
               items: cart,
               subtotal: subtotal,
               discount: discount,
               total: total,
-              type: orderType!, // We know this isn't null because we validated
-              payment: "Cash", // We know this is Cash
+              type: orderType!,
+              payment: "Cash",
+              discount_type: discountType,
               cashTendered: cashAmount,
-              changeDue: cashAmount - total, // Calculate the change
+              changeDue: cashAmount - total,
             };
-            // Set the final order, close the payment modal, and open the receipt
-            setCompletedOrder(orderDetails);
-            setIsPaymentModalOpen(false);
-            setIsReceiptModalOpen(true);
-            setCashTendered(""); // Clear the cash input
+
+            const submissionResult = await submitOrderToAPI(orderDetails);
+
+            if (submissionResult) {
+              // Only proceed if the database save was successful
+              setCompletedOrder(orderDetails);
+              setIsPaymentModalOpen(false);
+              setIsReceiptModalOpen(true);
+              setCashTendered("");
+            }
           }}
           cashTendered={cashTendered}
           setCashTendered={setCashTendered}
@@ -645,8 +689,8 @@ export default function PosPage() {
               onClick={() => setSelectedCategory(category)}
               className={`px-5 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
                 selectedCategory === category
-                  ? "bg-gray-900 text-white"
-                  : "bg-white text-gray-700 hover:bg-gray-50"
+                  ? "bg-amber-900 text-white"
+                  : "bg-white text-gray-700 hover:bg-amber-100"
               }`}
             >
               {category}
@@ -760,8 +804,8 @@ export default function PosPage() {
               onClick={() => setDiscountType("Senior")}
               className={`p-2 rounded-lg border text-xs ${
                 discountType === "Senior"
-                  ? "bg-gray-900 text-white"
-                  : "hover:bg-gray-50"
+                  ? "bg-amber-900 text-white"
+                  : "hover:bg-amber-100"
               }`}
             >
               Senior
@@ -770,8 +814,8 @@ export default function PosPage() {
               onClick={() => setDiscountType("PWD")}
               className={`p-2 rounded-lg border text-xs ${
                 discountType === "PWD"
-                  ? "bg-gray-900 text-white"
-                  : "hover:bg-gray-50"
+                  ? "bg-amber-900 text-white"
+                  : "hover:bg-amber-100"
               }`}
             >
               PWD
@@ -780,8 +824,8 @@ export default function PosPage() {
               onClick={() => setDiscountType("Employee")}
               className={`p-2 rounded-lg border text-xs ${
                 discountType === "Employee"
-                  ? "bg-gray-900 text-white"
-                  : "hover:bg-gray-50"
+                  ? "bg-amber-900 text-white"
+                  : "hover:bg-amber-100"
               }`}
             >
               Employee
@@ -807,7 +851,7 @@ export default function PosPage() {
                 onClick={() => setOrderType("Dine in")}
                 className={`p-3 rounded-lg border text-center cursor-pointer ${
                   orderType === "Dine in"
-                    ? "bg-gray-900 text-white border-gray-900"
+                    ? "bg-amber-900 text-white border-amber-900"
                     : "border-gray-300 hover:bg-gray-50"
                 }`}
               >
@@ -817,7 +861,7 @@ export default function PosPage() {
                 onClick={() => setOrderType("Take out")}
                 className={`p-3 rounded-lg border text-center cursor-pointer ${
                   orderType === "Take out"
-                    ? "bg-gray-900 text-white border-gray-900"
+                    ? "bg-amber-900 text-white border-amber-900"
                     : "border-gray-300 hover:bg-gray-50"
                 }`}
               >
@@ -834,7 +878,7 @@ export default function PosPage() {
                 onClick={() => setPaymentMethod("Cash")}
                 className={`p-3 rounded-lg border text-center cursor-pointer ${
                   paymentMethod === "Cash"
-                    ? "bg-gray-900 text-white border-gray-900"
+                    ? "bg-amber-900 text-white border-amber-900"
                     : "border-gray-300 hover:bg-gray-50"
                 }`}
               >
@@ -844,7 +888,7 @@ export default function PosPage() {
                 onClick={() => setPaymentMethod("Gcash")}
                 className={`p-3 rounded-lg border text-center cursor-pointer ${
                   paymentMethod === "Gcash"
-                    ? "bg-gray-900 text-white border-gray-900"
+                    ? "bg-amber-900 text-white border-amber-900"
                     : "border-gray-300 hover:bg-gray-50"
                 }`}
               >
@@ -855,7 +899,7 @@ export default function PosPage() {
 
           <button
             onClick={handleProceedToPayment}
-            className="w-full bg-gray-900 text-white p-4 rounded-lg font-bold cursor-pointer"
+            className="w-full bg-amber-900 text-white p-3 rounded-lg font-bold cursor-pointer"
           >
             Proceed to Payment
           </button>

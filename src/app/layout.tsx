@@ -37,7 +37,7 @@ export default function RootLayout({
 
         <div className="flex h-screen bg-gray-100">
           {/* ----- Dark Sidebar Navigation (UPDATED) ----- */}
-          <div className="w-64 bg-gray-900 text-white flex flex-col">
+          <div className="w-64 bg-stone-900 text-white flex flex-col">
             <div className="p-6 text-2xl font-bold">OneFaith</div>
             {/* --- RENDER THE NEW COMPONENT --- */}
             <SidebarNav />

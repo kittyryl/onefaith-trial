@@ -1,21 +1,20 @@
-// app/carwash-pos/page.tsx
 "use client";
 
-import { useState } from "react";
-import Image from "next/image";
+import { useState, useEffect } from "react";
 import {
-  LuSearch,
-  LuCoffee,
+  LuCar,
   LuX,
   LuPlus,
   LuMinus,
   LuTrash2,
-  LuCar,
   LuPrinter,
-} from "react-icons/lu"; // We'll use LuCar
+  LuPencilLine,
+} from "react-icons/lu";
 import { toast } from "react-toastify";
+import { v4 as uuidv4 } from "uuid"; // For unique cart IDs
 
-// ----- NEW: Carwash Data Structure -----
+// --- 1. INTERFACES ---
+
 interface ServicePrice {
   vehicle: string;
   price: number;
@@ -30,20 +29,35 @@ interface CarwashService {
 }
 
 interface CarwashCartItem {
-  cartId: string; // A unique ID for this specific cart item
-  serviceName: string; // e.g., "Detailed Wash"
-  vehicle: string; // e.g., "Sedan"
-  price: number; // e.g., 200
-  quantity: number; // We'll just start with 1
+  cartId: string;
+  serviceId: string;
+  serviceName: string;
+  vehicle: string;
+  price: number;
+  quantity: number;
 }
 
-// ----- NEW: All Carwash Services Data -----
+interface CarwashOrderDetails {
+  orderId: string;
+  items: CarwashCartItem[];
+  subtotal: number;
+  discount: number;
+  total: number;
+  payment: "Cash" | "Gcash";
+  cashTendered: number | null;
+  changeDue: number | null;
+  discount_type: string | null;
+  order_type: null; // Carwash doesn't have "Dine in"
+}
+
+// --- 2. CARWASH DATA ---
 const allServices: CarwashService[] = [
   {
     id: "detailed_wash",
     name: "Detailed Wash",
     category: "Basic",
-    description: "Experience a comprehensive exterior and interior cleaning...",
+    description:
+      "Exterior wash/dry, tire/wheel cleaning, interior cleaning, vacuum, armor all.",
     prices: [
       { vehicle: "Bike", price: 100 },
       { vehicle: "Big Bike", price: 150 },
@@ -58,8 +72,7 @@ const allServices: CarwashService[] = [
     id: "detailed_wash_wax",
     name: "Detailed Wash & Wax",
     category: "Most Popular",
-    description:
-      "Comprehensive cleaning and detailing, including hand waxing...",
+    description: "All Detailed Wash features + professional hand waxing.",
     prices: [
       { vehicle: "Bike", price: 250 },
       { vehicle: "Big Bike", price: 300 },
@@ -75,7 +88,7 @@ const allServices: CarwashService[] = [
     name: "Ceramic Coating",
     category: "Advanced",
     description:
-      "The ultimate luxury treatment... auto detailing techniques...",
+      "Ultimate luxury treatment, paint sealant, glass cleaning, deluxe detailing.",
     prices: [
       { vehicle: "Bikes", price: 3000 },
       { vehicle: "Small", price: 12000 },
@@ -89,7 +102,7 @@ const allServices: CarwashService[] = [
     id: "bac_2_zero",
     name: "Bac-2-Zero",
     category: "Others",
-    description: "", // No description on menu
+    description: "Interior sanitation service.",
     prices: [
       { vehicle: "S", price: 500 },
       { vehicle: "M", price: 550 },
@@ -102,7 +115,7 @@ const allServices: CarwashService[] = [
     id: "buffing_wax",
     name: "Buffing Wax",
     category: "Others",
-    description: "",
+    description: "Machine buffing for paint correction.",
     prices: [
       { vehicle: "S", price: 600 },
       { vehicle: "M", price: 700 },
@@ -115,7 +128,7 @@ const allServices: CarwashService[] = [
     id: "glass_cleaning",
     name: "Glass Cleaning",
     category: "Others",
-    description: "",
+    description: "Full exterior/interior glass detailing.",
     prices: [
       { vehicle: "S", price: 1250 },
       { vehicle: "M", price: 1400 },
@@ -128,7 +141,7 @@ const allServices: CarwashService[] = [
     id: "hand_wax",
     name: "Hand Wax",
     category: "Others",
-    description: "",
+    description: "Protective hand waxing service.",
     prices: [
       { vehicle: "S", price: 400 },
       { vehicle: "M", price: 500 },
@@ -139,22 +152,13 @@ const allServices: CarwashService[] = [
   },
 ];
 
-// ----- NEW: Vehicle Selection Modal -----
+// --- 3. MODAL COMPONENTS ---
+
+// -- Vehicle Selection Modal --
 interface VehicleSelectionModalProps {
   service: CarwashService;
   onClose: () => void;
-  onSelect: (priceInfo: ServicePrice) => void; // Passes back the selected { vehicle, price }
-}
-
-interface CarwashOrderDetails {
-  orderId: string;
-  items: CarwashCartItem[];
-  subtotal: number;
-  discount: number;
-  total: number;
-  payment: "Cash" | "Gcash";
-  cashTendered: number | null;
-  changeDue: number | null;
+  onSelect: (priceInfo: ServicePrice) => void;
 }
 
 function VehicleSelectionModal({
@@ -164,7 +168,7 @@ function VehicleSelectionModal({
 }: VehicleSelectionModalProps) {
   return (
     <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
-      <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+      <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-lg">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-xl font-semibold">{service.name}</h3>
           <button
@@ -174,16 +178,13 @@ function VehicleSelectionModal({
             <LuX size={24} />
           </button>
         </div>
-
         <p className="mb-4 text-gray-600">Please select a vehicle type:</p>
-
-        {/* --- This is where we loop over the prices --- */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-[60vh] overflow-y-auto">
           {service.prices.map((priceOption) => (
             <button
               key={priceOption.vehicle}
               onClick={() => onSelect(priceOption)}
-              className="p-4 rounded-lg border text-left cursor-pointer hover:bg-gray-100"
+              className="p-4 rounded-lg border text-left cursor-pointer hover:bg-gray-100 transition-colors"
             >
               <span className="block font-semibold text-lg">
                 {priceOption.vehicle}
@@ -199,6 +200,7 @@ function VehicleSelectionModal({
   );
 }
 
+// -- Payment Modal (Numpad) --
 interface PaymentModalProps {
   totalDue: number;
   onClose: () => void;
@@ -214,7 +216,6 @@ function PaymentModal({
   cashTendered,
   setCashTendered,
 }: PaymentModalProps) {
-  // ... (all the numpad logic and JSX from the coffee page)
   const numpadKeys = [
     "1",
     "2",
@@ -234,14 +235,13 @@ function PaymentModal({
     if (value === "C") {
       setCashTendered("");
     } else if (cashTendered.length < 10) {
-      if ((value === "0" || value === "00") && cashTendered === "") {
-        return;
-      }
+      if ((value === "0" || value === "00") && cashTendered === "") return;
       setCashTendered(cashTendered + value);
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
     const cashAmount = parseFloat(cashTendered);
     if (isNaN(cashAmount) || cashTendered === "") {
       toast.error("Please enter a cash amount.");
@@ -257,54 +257,57 @@ function PaymentModal({
   return (
     <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-sm">
-        {/* ... (all the JSX for the numpad modal) ... */}
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-semibold">Cash Payment</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-800"
-          >
-            <LuX size={24} />
-          </button>
-        </div>
-        <div className="mb-4">
-          <div className="flex justify-between text-lg">
-            <span>Total Due:</span>
-            <span className="font-bold">P{totalDue.toFixed(2)}</span>
-          </div>
-          <div className="mt-2 p-3 bg-gray-100 rounded text-right text-3xl font-mono">
-            {cashTendered ? (
-              `P${cashTendered}`
-            ) : (
-              <span className="text-gray-400">P0.00</span>
-            )}
-          </div>
-        </div>
-        <div className="grid grid-cols-3 gap-2 mb-4">
-          {numpadKeys.map((key) => (
+        <form onSubmit={handleSubmit}>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-xl font-semibold">Cash Payment</h3>
             <button
-              key={key}
-              onClick={() => handleNumpadClick(key)}
-              className="p-4 rounded-lg text-xl font-bold bg-gray-200 hover:bg-gray-300 cursor-pointer"
+              type="button"
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-800"
             >
-              {key}
+              <LuX size={24} />
             </button>
-          ))}
-        </div>
-        <button
-          onClick={handleSubmit}
-          className="w-full bg-green-500 text-white p-3 rounded-lg font-bold text-lg cursor-pointer"
-        >
-          Confirm Payment
-        </button>
+          </div>
+          <div className="mb-4">
+            <div className="flex justify-between text-lg">
+              <span>Total Due:</span>
+              <span className="font-bold">P{totalDue.toFixed(2)}</span>
+            </div>
+            <div className="mt-2 p-3 bg-gray-100 rounded text-right text-3xl font-mono">
+              {cashTendered ? (
+                `P${cashTendered}`
+              ) : (
+                <span className="text-gray-400">P0.00</span>
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            {numpadKeys.map((key) => (
+              <button
+                type="button"
+                key={key}
+                onClick={() => handleNumpadClick(key)}
+                className="p-4 rounded-lg text-xl font-bold bg-gray-200 hover:bg-gray-300 cursor-pointer"
+              >
+                {key}
+              </button>
+            ))}
+          </div>
+          <button
+            type="submit"
+            className="w-full bg-green-500 text-white p-3 rounded-lg font-bold text-lg cursor-pointer"
+          >
+            Confirm Payment
+          </button>
+        </form>
       </div>
     </div>
   );
 }
 
-// ----- COPIED & ADAPTED: Receipt Modal Component -----
+// -- Receipt Modal --
 interface ReceiptModalProps {
-  order: CarwashOrderDetails; // <-- CHANGED from OrderDetails
+  order: CarwashOrderDetails;
   onClose: () => void;
 }
 
@@ -317,11 +320,8 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
           <h2 className="text-2xl font-bold mt-4">Order Confirmed</h2>
           <p className="text-gray-500 text-sm">Order ID: {order.orderId}</p>
         </div>
-
-        {/* Item List */}
         <div className="max-h-60 overflow-y-auto space-y-2 mb-4 border-t border-b py-4 border-dashed">
           {order.items.map((item) => (
-            // This part is slightly different for carwash
             <div key={item.cartId} className="flex justify-between">
               <div>
                 <span className="font-semibold">{item.serviceName}</span>
@@ -336,8 +336,6 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
             </div>
           ))}
         </div>
-
-        {/* Summary (This is updated to show change, etc.) */}
         <div className="space-y-2 mb-6">
           <div className="flex justify-between">
             <span className="text-gray-600">Subtotal</span>
@@ -368,16 +366,14 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
               </div>
             </div>
           )}
-
           <div className="flex justify-between text-sm mt-4">
             <span className="text-gray-600">Payment</span>
             <span className="font-medium">{order.payment}</span>
           </div>
         </div>
-
         <button
           onClick={onClose}
-          className="w-full bg-gray-900 text-white p-3 rounded-lg font-bold cursor-pointer"
+          className="w-full bg-emerald-600 text-white p-3 rounded-lg font-bold cursor-pointer"
         >
           Start New Order
         </button>
@@ -386,75 +382,52 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
   );
 }
 
-// ----- End of new modal component -----
-
+// --- 4. MAIN PAGE COMPONENT ---
 export default function CarwashPosPage() {
+  const [cart, setCart] = useState<CarwashCartItem[]>([]);
   const [selectedService, setSelectedService] = useState<CarwashService | null>(
     null
   );
-  const [cart, setCart] = useState<CarwashCartItem[]>([]);
+
+  // Payment States
   const [discountType, setDiscountType] = useState<
     "Senior" | "PWD" | "Employee" | null
   >(null);
-
-  const [completedOrder, setCompletedOrder] =
-    useState<CarwashOrderDetails | null>(null);
-  // --- ADD THESE NEW STATES ---
-  // For Payment Method
   const [paymentMethod, setPaymentMethod] = useState<"Cash" | "Gcash" | null>(
     null
   );
-
-  // For the Numpad Modal
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState<boolean>(false);
   const [cashTendered, setCashTendered] = useState<string>("");
-
-  // For the final Receipt Modal
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState<boolean>(false);
+  const [completedOrder, setCompletedOrder] =
+    useState<CarwashOrderDetails | null>(null);
 
-  // We'll also need a new interface for the carwash order details
-  // and a state to hold the completed order.
-  // ...
-
-  const subtotal = cart.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
-  );
-
-  // --- NEW DISCOUNT LOGIC ---
-  const DISCOUNT_RATE = 0.2; // 20%
-
-  // Calculate discount based on state
-  const discount = discountType ? subtotal * DISCOUNT_RATE : 0;
-
-  // Calculate final total
-  const total = subtotal - discount;
-
-  // --- ADD THIS NEW FUNCTION ---
+  // --- Cart Handlers ---
   const handleAddToCart = (
     service: CarwashService,
     priceInfo: ServicePrice
   ) => {
-    // Create a new item for the cart
-    const newItem: CarwashCartItem = {
-      cartId: crypto.randomUUID(), // Create a unique ID
-      serviceName: service.name,
-      vehicle: priceInfo.vehicle,
-      price: priceInfo.price,
-      quantity: 1, // Start with quantity of 1
-    };
+    const existingItem = cart.find(
+      (item) =>
+        item.serviceId === service.id && item.vehicle === priceInfo.vehicle
+    );
 
-    // Add the new item to our cart array
-    setCart((prevCart) => [...prevCart, newItem]);
-
-    // Log to the console so we can see it's working
-    console.log("Added to cart:", newItem);
-
-    // Close the modal
+    if (existingItem) {
+      handleIncrementQuantity(existingItem.cartId);
+    } else {
+      const newItem: CarwashCartItem = {
+        cartId: uuidv4(),
+        serviceId: service.id,
+        serviceName: service.name,
+        vehicle: priceInfo.vehicle,
+        price: priceInfo.price,
+        quantity: 1,
+      };
+      setCart((prevCart) => [...prevCart, newItem]);
+    }
     setSelectedService(null);
   };
 
-  // --- ADD THESE NEW FUNCTIONS ---
   const handleIncrementQuantity = (cartId: string) => {
     setCart((prevCart) =>
       prevCart.map((item) =>
@@ -464,15 +437,14 @@ export default function CarwashPosPage() {
   };
 
   const handleDecrementQuantity = (cartId: string) => {
-    setCart(
-      (prevCart) =>
-        prevCart
-          .map((item) =>
-            item.cartId === cartId
-              ? { ...item, quantity: Math.max(0, item.quantity - 1) }
-              : item
-          )
-          .filter((item) => item.quantity > 0) // Automatically remove if quantity reaches 0
+    setCart((prevCart) =>
+      prevCart
+        .map((item) =>
+          item.cartId === cartId
+            ? { ...item, quantity: Math.max(0, item.quantity - 1) }
+            : item
+        )
+        .filter((item) => item.quantity > 0)
     );
   };
 
@@ -482,90 +454,132 @@ export default function CarwashPosPage() {
 
   const clearCart = () => {
     setCart([]);
+    setDiscountType(null);
+    setPaymentMethod(null);
   };
 
-  const handleProceedToPayment = () => {
+  // --- Calculation ---
+  const subtotal = cart.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
+  const DISCOUNT_RATE = 0.2;
+  const discount = discountType ? subtotal * DISCOUNT_RATE : 0;
+  const total = subtotal - discount;
+
+  // --- API Submission ---
+  const submitOrderToAPI = async (orderDetails: CarwashOrderDetails) => {
+    const payload = {
+      orderDetails: {
+        ...orderDetails,
+        order_type: null, // Ensure order_type is null for carwash
+      },
+      businessUnit: "Carwash", // Identify the source as Carwash
+    };
+
+    try {
+      // NOTE: Ensure your IP address is correct
+      const response = await fetch("http://192.168.1.4:5000/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) throw new Error("Server responded with an error.");
+      const result = await response.json();
+      toast.success(`Order ${result.orderId} Saved!`);
+      return result;
+    } catch (error) {
+      console.error("API Submission Error:", error);
+      toast.error("Failed to save order to database.");
+      return null;
+    }
+  };
+
+  // --- Payment Flow Handlers ---
+  const handleProceedToPayment = async () => {
     if (cart.length === 0) {
-      toast.error("Cannot proceed: The cart is empty.");
+      toast.error("Cart is empty.");
       return;
     }
     if (!paymentMethod) {
-      toast.error("Cannot proceed: Please select a Payment Method.");
+      toast.error("Please select a Payment Method.");
       return;
     }
 
-    if (paymentMethod === "Gcash") {
-      const orderDetails: CarwashOrderDetails = {
-        orderId: `ORD-${crypto.randomUUID().slice(0, 8)}`,
-        items: cart,
-        subtotal: subtotal,
-        discount: discount,
-        total: total,
-        payment: "Gcash",
-        cashTendered: null,
-        changeDue: null,
-      };
+    const baseOrder: CarwashOrderDetails = {
+      orderId: `ORD-${uuidv4().slice(0, 8)}`,
+      items: cart,
+      subtotal: subtotal,
+      discount: discount,
+      total: total,
+      payment: paymentMethod,
+      discount_type: discountType,
+      cashTendered: null,
+      changeDue: null,
+      order_type: null,
+    };
 
-      setCompletedOrder(orderDetails);
-      setIsReceiptModalOpen(true); // Open receipt modal
+    if (paymentMethod === "Gcash") {
+      const submissionResult = await submitOrderToAPI(baseOrder);
+      if (submissionResult) {
+        setCompletedOrder(baseOrder);
+        setIsReceiptModalOpen(true);
+      }
     } else if (paymentMethod === "Cash") {
-      setIsPaymentModalOpen(true); // Open numpad modal
+      setIsPaymentModalOpen(true);
+    }
+  };
+
+  const handleCashPaymentSubmit = async (cashAmount: number) => {
+    const orderDetails: CarwashOrderDetails = {
+      orderId: `ORD-${uuidv4().slice(0, 8)}`,
+      items: cart,
+      subtotal: subtotal,
+      discount: discount,
+      total: total,
+      payment: "Cash",
+      discount_type: discountType,
+      cashTendered: cashAmount,
+      changeDue: cashAmount - total,
+      order_type: null,
+    };
+    const submissionResult = await submitOrderToAPI(orderDetails);
+    if (submissionResult) {
+      setCompletedOrder(orderDetails);
+      setIsPaymentModalOpen(false);
+      setIsReceiptModalOpen(true);
+      setCashTendered("");
     }
   };
 
   const handleCloseReceipt = () => {
     setIsReceiptModalOpen(false);
     clearCart();
-    setDiscountType(null);
-    setPaymentMethod(null);
     setCompletedOrder(null);
     toast.success("New order started!");
   };
 
+  // --- RENDER ---
   return (
     <div className="flex h-full">
-      {/* --- MODAL 1: Vehicle Selection --- */}
+      {/* Modals */}
       {selectedService && (
         <VehicleSelectionModal
           service={selectedService}
           onClose={() => setSelectedService(null)}
-          onSelect={(priceInfo) => {
-            handleAddToCart(selectedService, priceInfo);
-          }}
+          onSelect={(priceInfo) => handleAddToCart(selectedService, priceInfo)}
         />
       )}
-
-      {/* --- MODAL 2: Payment Numpad (Copied) --- */}
       {isPaymentModalOpen && (
         <PaymentModal
           totalDue={total}
-          onClose={() => {
-            setIsPaymentModalOpen(false);
-            setCashTendered("");
-          }}
-          onSubmit={(cashAmount) => {
-            const orderDetails: CarwashOrderDetails = {
-              orderId: `ORD-${crypto.randomUUID().slice(0, 8)}`,
-              items: cart,
-              subtotal: subtotal,
-              discount: discount,
-              total: total,
-              payment: "Cash",
-              cashTendered: cashAmount,
-              changeDue: cashAmount - total,
-            };
-
-            setCompletedOrder(orderDetails);
-            setIsPaymentModalOpen(false); // Close numpad
-            setIsReceiptModalOpen(true); // Open receipt
-            setCashTendered("");
-          }}
+          onClose={() => setIsPaymentModalOpen(false)}
+          onSubmit={handleCashPaymentSubmit}
           cashTendered={cashTendered}
           setCashTendered={setCashTendered}
         />
       )}
-
-      {/* --- MODAL 3: Receipt (Copied) --- */}
       {isReceiptModalOpen && completedOrder && (
         <ReceiptModal order={completedOrder} onClose={handleCloseReceipt} />
       )}
@@ -573,47 +587,31 @@ export default function CarwashPosPage() {
       {/* ----- Services Section (Center) ----- */}
       <div className="flex-1 p-8 overflow-y-auto">
         <h1 className="text-2xl font-bold mb-6">Carwash POS</h1>
-
-        {/* --- NEW: Looping over services --- */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {/* --- UPDATED LAYOUT --- */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           {allServices.map((service) => (
             <div
               key={service.id}
-              className="bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
               onClick={() => setSelectedService(service)}
+              className="bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow flex flex-col justify-between p-6 h-full"
             >
-              {/* We can add an image here later */}
-              <div className="p-4">
-                <span className="text-xs text-blue-500 font-semibold">
+              <div>
+                <span className="text-xs text-blue-500 font-semibold uppercase">
                   {service.category}
                 </span>
-                <h3 className="text-lg font-semibold mt-1">{service.name}</h3>
-                <p className="text-gray-600 text-sm mt-2">
+                <h3 className="text-lg font-bold mt-1 mb-2">{service.name}</h3>
+                <p className="text-gray-600 text-sm mb-4">
                   {service.description}
                 </p>
-                {/* We show a price range instead of one price */}
-                <p className="text-lg font-bold mt-3">
-                  P{Math.min(...service.prices.map((p) => p.price))} - P
-                  {Math.max(...service.prices.map((p) => p.price))}
-                </p>
               </div>
+              <p className="text-lg font-bold text-gray-800 mt-2">
+                P{Math.min(...service.prices.map((p) => p.price))} - P
+                {Math.max(...service.prices.map((p) => p.price))}
+              </p>
             </div>
           ))}
         </div>
-        {/* --- End of loop --- */}
       </div>
-
-      {/* ----- ADD THIS CODE BLOCK ----- */}
-      {selectedService && (
-        <VehicleSelectionModal
-          service={selectedService}
-          onClose={() => setSelectedService(null)}
-          onSelect={(priceInfo) => {
-            handleAddToCart(selectedService, priceInfo); // <-- Call our new function
-          }}
-        />
-      )}
-      {/* ----- END OF NEW CODE BLOCK ----- */}
 
       {/* ----- Current Order Section (Right) ----- */}
       <div className="w-96 bg-white p-6 border-l border-gray-200 h-full flex flex-col">
@@ -627,7 +625,7 @@ export default function CarwashPosPage() {
           </button>
         </div>
 
-        {/* Order Items */}
+        {/* Cart Items */}
         <div className="flex-1 overflow-y-auto">
           {cart.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-400">
@@ -638,7 +636,6 @@ export default function CarwashPosPage() {
             <div className="space-y-4">
               {cart.map((item) => (
                 <div key={item.cartId} className="flex items-center gap-3">
-                  {/* Item Details */}
                   <div className="flex-1">
                     <h4 className="font-semibold">{item.serviceName}</h4>
                     <p className="text-sm text-gray-500">{item.vehicle}</p>
@@ -646,8 +643,6 @@ export default function CarwashPosPage() {
                       P{(item.price * item.quantity).toFixed(2)}
                     </p>
                   </div>
-
-                  {/* Quantity Controls */}
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleDecrementQuantity(item.cartId)}
@@ -665,8 +660,6 @@ export default function CarwashPosPage() {
                       <LuPlus size={16} />
                     </button>
                   </div>
-
-                  {/* Remove Button */}
                   <button
                     onClick={() => handleRemoveItem(item.cartId)}
                     className="text-red-500 hover:text-red-700 cursor-pointer"
@@ -689,19 +682,20 @@ export default function CarwashPosPage() {
             <span>Subtotal</span>
             <span>P{subtotal.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between mb-4">
+          <div className="flex justify-between mb-2">
             <span>Discount</span>
             <span className="font-semibold text-red-500">
               - P{discount.toFixed(2)}
             </span>
           </div>
-          {/* ----- NEW DISCOUNT BUTTONS ----- */}
+
+          {/* Discount Buttons */}
           <div className="grid grid-cols-4 gap-2 mb-4">
             <button
               onClick={() => setDiscountType("Senior")}
               className={`p-2 rounded-lg border text-xs cursor-pointer ${
                 discountType === "Senior"
-                  ? "bg-gray-900 text-white"
+                  ? "bg-amber-800 text-white"
                   : "hover:bg-gray-50"
               }`}
             >
@@ -711,7 +705,7 @@ export default function CarwashPosPage() {
               onClick={() => setDiscountType("PWD")}
               className={`p-2 rounded-lg border text-xs cursor-pointer ${
                 discountType === "PWD"
-                  ? "bg-gray-900 text-white"
+                  ? "bg-amber-800 text-white"
                   : "hover:bg-gray-50"
               }`}
             >
@@ -721,26 +715,26 @@ export default function CarwashPosPage() {
               onClick={() => setDiscountType("Employee")}
               className={`p-2 rounded-lg border text-xs cursor-pointer ${
                 discountType === "Employee"
-                  ? "bg-gray-900 text-white"
+                  ? "bg-amber-800 text-white"
                   : "hover:bg-gray-50"
               }`}
             >
               Employee
             </button>
             <button
-              onClick={() => setDiscountType(null)} // Clear discount
+              onClick={() => setDiscountType(null)}
               className="p-2 rounded-lg border text-xs text-red-500 hover:bg-gray-50 cursor-pointer"
             >
               Clear
             </button>
           </div>
-          {/* ----- END OF NEW BUTTONS ----- */}
+
           <div className="flex justify-between items-center text-xl font-bold mb-6">
             <span>Total</span>
             <span>P{total.toFixed(2)}</span>
           </div>
 
-          {/* ----- NEW PAYMENT METHOD BUTTONS ----- */}
+          {/* Payment Method Buttons */}
           <div className="mb-6">
             <label className="block text-sm font-medium mb-2">
               Payment Method
@@ -750,7 +744,7 @@ export default function CarwashPosPage() {
                 onClick={() => setPaymentMethod("Cash")}
                 className={`p-2 rounded-lg border text-center cursor-pointer ${
                   paymentMethod === "Cash"
-                    ? "bg-gray-900 text-white border-gray-900"
+                    ? "bg-amber-800 text-white border-amber-800"
                     : "border-gray-300 hover:bg-gray-50"
                 }`}
               >
@@ -760,7 +754,7 @@ export default function CarwashPosPage() {
                 onClick={() => setPaymentMethod("Gcash")}
                 className={`p-2 rounded-lg border text-center cursor-pointer ${
                   paymentMethod === "Gcash"
-                    ? "bg-gray-900 text-white border-gray-900"
+                    ? "bg-amber-800 text-white border-amber-800"
                     : "border-gray-300 hover:bg-gray-50"
                 }`}
               >
@@ -768,11 +762,10 @@ export default function CarwashPosPage() {
               </button>
             </div>
           </div>
-          {/* ----- END OF NEW BUTTONS ----- */}
 
           <button
             onClick={handleProceedToPayment}
-            className="w-full bg-gray-900 text-white p-3 rounded-lg font-bold cursor-pointer disabled:bg-gray-400"
+            className="w-full bg-amber-800 text-white p-3 rounded-lg font-bold cursor-pointer disabled:bg-gray-400"
             disabled={cart.length === 0}
           >
             Proceed to Payment
