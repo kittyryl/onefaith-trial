@@ -6,14 +6,13 @@ import {
   LuDownload,
   LuDollarSign,
   LuCalendar,
-  LuFilter,
   LuSearch,
   LuArrowUpDown,
   LuClock,
 } from "react-icons/lu";
 import { toast } from "react-toastify";
 
-// --- INTERFACES ---
+// Types
 interface SalesOrderItem {
   item_type: string;
   business_unit: "Coffee" | "Carwash";
@@ -36,10 +35,11 @@ interface SalesOrder {
   items_summary: SalesOrderItem[];
 }
 
-// --- MAIN PAGE COMPONENT ---
+// Sales Page
 export default function SalesPage() {
   const [salesData, setSalesData] = useState<SalesOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
 
   // --- State for filters ---
   const [startDate, setStartDate] = useState("");
@@ -49,7 +49,7 @@ export default function SalesPage() {
   const [sortColumn, setSortColumn] = useState<string>("");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
-  // --- CSV Export Function ---
+  // CSV export
   const exportToCSV = () => {
     const dataToExport = filteredAndSortedData();
 
@@ -118,7 +118,7 @@ export default function SalesPage() {
     toast.success(`Exported ${dataToExport.length} transactions to CSV`);
   };
 
-  // --- Data Fetching ---
+  // Fetch sales (reacts to filters)
   const fetchSalesData = async () => {
     try {
       setLoading(true);
@@ -131,7 +131,7 @@ export default function SalesPage() {
       const queryString = params.toString();
 
       const response = await fetch(
-        `http://192.168.1.4:5000/api/reports/summary?${queryString}`
+        `${API_BASE}/api/reports/summary?${queryString}`
       );
 
       if (!response.ok) {
@@ -159,14 +159,10 @@ export default function SalesPage() {
   /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     fetchSalesData();
-  }, []);
+  }, [startDate, endDate, businessUnit]);
   /* eslint-enable react-hooks/exhaustive-deps */
 
-  const handleFilter = () => {
-    fetchSalesData();
-  };
-
-  // --- Quick Date Presets ---
+  // Quick date presets
   const setDatePreset = (preset: "today" | "7days" | "30days" | "all") => {
     const today = new Date();
     const formatDate = (date: Date) => date.toISOString().split("T")[0];
@@ -195,7 +191,7 @@ export default function SalesPage() {
     }
   };
 
-  // --- Sort Handler ---
+  // Sort handler
   const handleSort = (column: string) => {
     if (sortColumn === column) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc");
@@ -205,7 +201,7 @@ export default function SalesPage() {
     }
   };
 
-  // --- Filter and Sort Logic ---
+  // Filter + sort
   const filteredAndSortedData = () => {
     const filtered = salesData.filter((order) => {
       const matchesSearch =
@@ -253,7 +249,7 @@ export default function SalesPage() {
 
   const dataToDisplay = filteredAndSortedData();
 
-  // Filtered metrics
+  // Derived metrics (after filters)
   const filteredTotalSales = dataToDisplay.reduce(
     (sum, order) => sum + Number(order.total),
     0
@@ -362,15 +358,6 @@ export default function SalesPage() {
                 <option value="Carwash">Carwash POS</option>
               </select>
             </div>
-
-            {/* Filter Button */}
-            <button
-              onClick={handleFilter}
-              className="bg-amber-800 text-white px-5 py-2 rounded-lg flex items-center hover:bg-amber-700 transition-colors w-full sm:w-auto justify-center"
-            >
-              <LuFilter size={18} className="mr-2" />
-              Filter
-            </button>
           </div>
         </div>
 

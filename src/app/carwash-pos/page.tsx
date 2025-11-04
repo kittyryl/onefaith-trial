@@ -10,11 +10,11 @@ import {
   LuPrinter,
 } from "react-icons/lu";
 import { toast } from "react-toastify";
-import { v4 as uuidv4 } from "uuid"; // For unique cart IDs
+import { v4 as uuidv4 } from "uuid";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
 
-// --- 1. INTERFACES ---
+// Types
 
 interface ServicePrice {
   vehicle: string;
@@ -48,10 +48,10 @@ interface CarwashOrderDetails {
   cashTendered: number | null;
   changeDue: number | null;
   discount_type: string | null;
-  order_type: null; // Carwash doesn't have "Dine in"
+  order_type: null;
 }
 
-// --- 2. CARWASH DATA ---
+// Services catalog
 const allServices: CarwashService[] = [
   {
     id: "detailed_wash",
@@ -153,7 +153,7 @@ const allServices: CarwashService[] = [
   },
 ];
 
-// --- 3. MODAL COMPONENTS ---
+// Modals
 
 // -- Vehicle Selection Modal --
 interface VehicleSelectionModalProps {
@@ -196,6 +196,96 @@ function VehicleSelectionModal({
             </button>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// -- Customer Details Modal --
+interface CustomerDetailsModalProps {
+  onClose: () => void;
+  onSubmit: (details: {
+    customerName: string;
+    customerPhone: string;
+    plateNumber: string;
+  }) => void;
+  initialName: string;
+  initialPhone: string;
+  initialPlate: string;
+}
+
+function CustomerDetailsModal({
+  onClose,
+  onSubmit,
+  initialName,
+  initialPhone,
+  initialPlate,
+}: CustomerDetailsModalProps) {
+  const [name, setName] = useState(initialName);
+  const [phone, setPhone] = useState(initialPhone);
+  const [plate, setPlate] = useState(initialPlate);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit({ customerName: name, customerPhone: phone, plateNumber: plate });
+  };
+
+  return (
+    <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
+      <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+        <form onSubmit={handleSubmit}>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-xl font-semibold">Customer Details</h3>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-800"
+            >
+              <LuX size={24} />
+            </button>
+          </div>
+          <div className="space-y-4 mb-6">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Customer Name (Optional)
+              </label>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Juan Dela Cruz"
+                className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Phone Number (Optional)
+              </label>
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="e.g. 09XXXXXXXXX"
+                className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Plate Number (Optional)
+              </label>
+              <input
+                value={plate}
+                onChange={(e) => setPlate(e.target.value.toUpperCase())}
+                placeholder="e.g. ABC1234"
+                className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 uppercase"
+              />
+            </div>
+          </div>
+          <button
+            type="submit"
+            className="w-full bg-amber-600 hover:bg-amber-700 text-white p-3 rounded-lg font-bold text-lg cursor-pointer transition-colors"
+          >
+            Continue to Payment
+          </button>
+        </form>
       </div>
     </div>
   );
@@ -383,7 +473,7 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
   );
 }
 
-// --- 4. MAIN PAGE COMPONENT ---
+// POS
 export default function CarwashPosPage() {
   const [cart, setCart] = useState<CarwashCartItem[]>([]);
   const [selectedService, setSelectedService] = useState<CarwashService | null>(
@@ -402,6 +492,8 @@ export default function CarwashPosPage() {
   const [paymentMethod, setPaymentMethod] = useState<"Cash" | "Gcash" | null>(
     null
   );
+  const [isCustomerDetailsModalOpen, setIsCustomerDetailsModalOpen] =
+    useState<boolean>(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState<boolean>(false);
   const [cashTendered, setCashTendered] = useState<string>("");
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState<boolean>(false);
@@ -479,7 +571,7 @@ export default function CarwashPosPage() {
   const discount = discountType ? subtotal * DISCOUNT_RATE : 0;
   const total = subtotal - discount;
 
-  // --- Carwash Service Queue Upsert ---
+  // Upsert service ticket
   const upsertCarwashServiceTicket = useCallback(
     async (status: "queue" | "in_progress" | "completed" = "queue") => {
       if (!currentOrderId || cart.length === 0) return;
@@ -559,8 +651,8 @@ export default function CarwashPosPage() {
     }
   };
 
-  // --- Payment Flow Handlers ---
-  const handleProceedToPayment = async () => {
+  // Payment flow
+  const handleProceedToPayment = () => {
     if (cart.length === 0) {
       toast.error("Cart is empty.");
       return;
@@ -572,14 +664,29 @@ export default function CarwashPosPage() {
     if (!currentOrderId) {
       setCurrentOrderId(`ORD-${uuidv4().slice(0, 8)}`);
     }
+    // Open customer details modal first
+    setIsCustomerDetailsModalOpen(true);
+  };
 
+  const handleCustomerDetailsSubmit = async (details: {
+    customerName: string;
+    customerPhone: string;
+    plateNumber: string;
+  }) => {
+    // Update customer details
+    setCustomerName(details.customerName);
+    setCustomerPhone(details.customerPhone);
+    setPlateNumber(details.plateNumber);
+    setIsCustomerDetailsModalOpen(false);
+
+    // Proceed with payment
     const baseOrder: CarwashOrderDetails = {
       orderId: currentOrderId || `ORD-${uuidv4().slice(0, 8)}`,
       items: cart,
       subtotal: subtotal,
       discount: discount,
       total: total,
-      payment: paymentMethod,
+      payment: paymentMethod!,
       discount_type: discountType,
       cashTendered: null,
       changeDue: null,
@@ -642,6 +749,15 @@ export default function CarwashPosPage() {
           onSelect={(priceInfo) => handleAddToCart(selectedService, priceInfo)}
         />
       )}
+      {isCustomerDetailsModalOpen && (
+        <CustomerDetailsModal
+          onClose={() => setIsCustomerDetailsModalOpen(false)}
+          onSubmit={handleCustomerDetailsSubmit}
+          initialName={customerName}
+          initialPhone={customerPhone}
+          initialPlate={plateNumber}
+        />
+      )}
       {isPaymentModalOpen && (
         <PaymentModal
           totalDue={total}
@@ -655,7 +771,7 @@ export default function CarwashPosPage() {
         <ReceiptModal order={completedOrder} onClose={handleCloseReceipt} />
       )}
 
-      {/* ----- Services Section (Center) ----- */}
+      {/* Services */}
       <div className="flex-1 min-h-0 p-6 overflow-y-auto">
         <h1 className="text-3xl font-bold mb-2 text-gray-900">
           Carwash Services
@@ -696,7 +812,7 @@ export default function CarwashPosPage() {
         </div>
       </div>
 
-      {/* ----- Current Order Section (Right) ----- */}
+      {/* Order */}
       <div className="w-full lg:w-[420px] bg-white p-6 border-t lg:border-l border-gray-200 flex flex-col shadow-lg">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold">Current Order</h2>
@@ -708,47 +824,7 @@ export default function CarwashPosPage() {
           </button>
         </div>
 
-        {/* Order Summary */}
-        <div className="bg-gray-50 rounded-lg p-4 border border-gray-100 mb-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
-              <label className="block text-xs font-semibold text-gray-600 mb-1">
-                Customer Name
-              </label>
-              <input
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="e.g. Juan Dela Cruz"
-                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">
-                Phone
-              </label>
-              <input
-                value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
-                placeholder="e.g. 09XXXXXXXXX"
-                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">
-                Plate Number
-              </label>
-              <input
-                value={plateNumber}
-                onChange={(e) => setPlateNumber(e.target.value.toUpperCase())}
-                placeholder="e.g. ABC1234"
-                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 uppercase"
-              />
-            </div>
-            {/* Vehicle Type is inferred from the first cart item; no manual input */}
-          </div>
-        </div>
-
-        {/* Cart Items */}
+        {/* Cart */}
         <div className="flex-1 overflow-y-auto">
           {cart.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-400">
@@ -767,23 +843,23 @@ export default function CarwashPosPage() {
                       {item.serviceName}
                     </h4>
                     <p className="text-sm text-gray-500">{item.vehicle}</p>
-                    <p className="text-base font-semibold mt-1 text-gray-900">
+                    <p className="text-base font-semibold mt-1">
                       ₱{(item.price * item.quantity).toLocaleString()}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleDecrementQuantity(item.cartId)}
-                      className="p-1.5 rounded-md bg-white border border-gray-200 hover:bg-gray-100 cursor-pointer"
+                      className="p-1.5 rounded-md bg-white border hover:bg-gray-100 cursor-pointer"
                     >
                       <LuMinus size={16} className="text-gray-700" />
                     </button>
-                    <span className="font-bold w-8 text-center text-gray-900">
+                    <span className="font-bold w-8 text-center">
                       {item.quantity}
                     </span>
                     <button
                       onClick={() => handleIncrementQuantity(item.cartId)}
-                      className="p-1.5 rounded-md bg-white border border-gray-200 hover:bg-gray-100 cursor-pointer"
+                      className="p-1.5 rounded-md bg-white border hover:bg-gray-100 cursor-pointer"
                     >
                       <LuPlus size={16} className="text-gray-700" />
                     </button>

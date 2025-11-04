@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Image from "next/image"; // Import Next.js Image
+import Image from "next/image";
 import {
   LuPencilLine,
   LuTrash2,
@@ -9,14 +9,14 @@ import {
   LuPlus,
   LuX,
   LuCoffee,
-  LuFlaskConical as LuFlask, // Use the icon you specified
+  LuFlaskConical as LuFlask,
   LuSearch,
   LuArrowUpDown,
   LuDownload,
 } from "react-icons/lu";
 import { toast } from "react-toastify";
 
-// --- INTERFACES ---
+// Types
 
 interface Ingredient {
   id: number;
@@ -33,7 +33,7 @@ interface Product {
   category: string;
   price: number;
   needs_temp: boolean;
-  image_url: string | null; // Image URL can be null
+  image_url: string | null;
 }
 
 interface FormData {
@@ -47,7 +47,7 @@ interface FormData {
   image_url?: string | null; // Added for product image
 }
 
-// --- MODAL COMPONENT PROPS ---
+// Modal prop types
 
 interface ItemFormModalProps {
   initialData: Ingredient | Product | null;
@@ -195,17 +195,18 @@ function ItemFormModal({
     }
 
     setUploading(true);
-    let finalImageUrl = imageUrl; // Start with the existing image URL (if any)
+    let finalImageUrl = imageUrl;
 
-    // --- 1. Handle File Upload FIRST ---
+    // Upload file first (if any)
     if (selectedFile) {
       const fileFormData = new FormData();
       fileFormData.append("image", selectedFile);
 
       try {
-        // *** REMEMBER TO USE YOUR LAPTOP'S IP ADDRESS ***
         const uploadResponse = await fetch(
-          "http://192.168.1.4:5000/api/upload",
+          `${
+            process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000"
+          }/api/upload`,
           {
             method: "POST",
             body: fileFormData,
@@ -216,7 +217,7 @@ function ItemFormModal({
           throw new Error("Image upload failed.");
         }
         const uploadResult = await uploadResponse.json();
-        finalImageUrl = uploadResult.image_url; // Get the new Cloudinary URL
+        finalImageUrl = uploadResult.image_url;
       } catch (error: unknown) {
         const message =
           error instanceof Error ? error.message : "Upload failed";
@@ -547,6 +548,7 @@ export default function InventoryPage() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
 
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isMovementModalOpen, setIsMovementModalOpen] = useState(false);
@@ -564,6 +566,9 @@ export default function InventoryPage() {
   // --- Filter and Sort States ---
   const [searchQuery, setSearchQuery] = useState("");
   const [showLowStockOnly, setShowLowStockOnly] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [selectedIngredientCategory, setSelectedIngredientCategory] =
+    useState("All");
   const [sortColumn, setSortColumn] = useState<string>("");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
@@ -655,17 +660,14 @@ export default function InventoryPage() {
     document.body.removeChild(link);
   };
 
-  // --- API Handlers ---
+  // API handlers
 
   const fetchAllData = async () => {
     setLoading(true);
     try {
-      // *** REMEMBER TO USE YOUR LAPTOP'S IP ADDRESS ***
-      const API_URL = "http://192.168.1.4:5000";
-
       const [ingResponse, prodResponse] = await Promise.all([
-        fetch(`${API_URL}/api/ingredients`),
-        fetch(`${API_URL}/api/products`),
+        fetch(`${API_BASE}/api/ingredients`),
+        fetch(`${API_BASE}/api/products`),
       ]);
 
       const ingData: Ingredient[] = ingResponse.ok
@@ -689,7 +691,7 @@ export default function InventoryPage() {
     }
   };
 
-  // --- COMBINED SAVE/UPDATE HANDLER ---
+  // Create/update item
   const handleSaveOrUpdate = async (data: FormData) => {
     const isIngredient = activeTab === "ingredients";
     let endpoint = "";
@@ -702,8 +704,7 @@ export default function InventoryPage() {
     }
 
     try {
-      // *** REMEMBER TO USE YOUR LAPTOP'S IP ADDRESS ***
-      const response = await fetch(`http://192.168.1.4:5000${endpoint}`, {
+      const response = await fetch(`${API_BASE}${endpoint}`, {
         method: method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
@@ -727,7 +728,7 @@ export default function InventoryPage() {
     setItemToEdit(null);
   };
 
-  // --- Stock Movement Handler ---
+  // Stock movement
   const handleRecordMovement = async (data: {
     quantity: number;
     movement_type: "IN" | "OUT" | "AUDIT";
@@ -736,15 +737,11 @@ export default function InventoryPage() {
     if (!selectedIngredient) return;
     try {
       const payload = { ...data, ingredient_id: selectedIngredient.id };
-      // *** REMEMBER TO USE YOUR LAPTOP'S IP ADDRESS ***
-      const response = await fetch(
-        "http://192.168.1.4:5000/api/ingredients/movement",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }
-      );
+      const response = await fetch(`${API_BASE}/api/ingredients/movement`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
       if (!response.ok) throw new Error("Failed to record movement.");
       toast.success(
@@ -756,7 +753,7 @@ export default function InventoryPage() {
     }
   };
 
-  // --- DELETE Handler ---
+  // Delete item
   const handleDeleteItem = async (id: number) => {
     if (!itemToDelete) return;
     const name = itemToDelete.name;
@@ -766,8 +763,7 @@ export default function InventoryPage() {
       : `/api/products/${id}`;
 
     try {
-      // *** REMEMBER TO USE YOUR LAPTOP'S IP ADDRESS ***
-      const response = await fetch(`http://192.168.1.4:5000${endpoint}`, {
+      const response = await fetch(`${API_BASE}${endpoint}`, {
         method: "DELETE",
       });
 
@@ -809,10 +805,12 @@ export default function InventoryPage() {
     setIsDeleteModalOpen(true);
   };
 
-  // --- Lifecycle ---
+  // Lifecycle
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     fetchAllData();
   }, []);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   // --- Filter and Sort Logic ---
   const handleSort = (column: string) => {
@@ -828,6 +826,13 @@ export default function InventoryPage() {
     let filtered = ingredients.filter((ing) =>
       ing.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
+
+    // Apply category filter
+    if (selectedIngredientCategory !== "All") {
+      filtered = filtered.filter(
+        (ing) => ing.category === selectedIngredientCategory
+      );
+    }
 
     if (showLowStockOnly) {
       filtered = filtered.filter(
@@ -871,9 +876,14 @@ export default function InventoryPage() {
   };
 
   const filteredAndSortedProducts = () => {
-    const filtered = products.filter((prod) =>
+    let filtered = products.filter((prod) =>
       prod.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
+
+    // Apply category filter
+    if (selectedCategory !== "All") {
+      filtered = filtered.filter((prod) => prod.category === selectedCategory);
+    }
 
     if (sortColumn) {
       filtered.sort((a, b) => {
@@ -984,19 +994,6 @@ export default function InventoryPage() {
             {dataToDisplay.map((ingredient) => {
               const isLow =
                 ingredient.current_stock <= ingredient.required_stock;
-              const showBar = (ingredient.required_stock || 0) > 0;
-              const pct = showBar
-                ? Math.max(
-                    0,
-                    Math.min(
-                      100,
-                      Math.round(
-                        (ingredient.current_stock / ingredient.required_stock) *
-                          100
-                      )
-                    )
-                  )
-                : 0;
               return (
                 <tr key={ingredient.id} className="hover:bg-gray-50/80">
                   <td className="w-48 px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 truncate">
@@ -1022,16 +1019,6 @@ export default function InventoryPage() {
                       >
                         {ingredient.current_stock}
                       </span>
-                      {showBar && (
-                        <div className="mt-2 h-1.5 w-24 rounded-full bg-gray-100">
-                          <div
-                            className={`h-1.5 rounded-full ${
-                              isLow ? "bg-red-500" : "bg-emerald-500"
-                            }`}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                      )}
                     </div>
                   </td>
                   <td className="w-36 px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -1264,34 +1251,80 @@ export default function InventoryPage() {
         </div>
 
         {/* Search and Filters */}
-        <div className="mb-6 flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <LuSearch
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-              size={18}
-            />
-            <input
-              type="text"
-              placeholder={`Search ${
-                activeTab === "ingredients" ? "ingredients" : "products"
-              }...`}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-            />
+        <div className="mb-6 flex flex-col gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <LuSearch
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                size={18}
+              />
+              <input
+                type="text"
+                placeholder={`Search ${
+                  activeTab === "ingredients" ? "ingredients" : "products"
+                }...`}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              />
+            </div>
+
+            {activeTab === "ingredients" && (
+              <button
+                onClick={() => setShowLowStockOnly(!showLowStockOnly)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  showLowStockOnly
+                    ? "bg-red-100 text-red-800 border-2 border-red-300"
+                    : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                {showLowStockOnly ? "✓ Low Stock Only" : "Low Stock Only"}
+              </button>
+            )}
           </div>
 
+          {/* Category Filter for Products Tab */}
+          {activeTab === "products" && (
+            <div className="flex items-center gap-3 overflow-x-auto pb-2">
+              {[
+                "All",
+                ...Array.from(new Set(products.map((p) => p.category))),
+              ].map((category) => (
+                <button
+                  key={category}
+                  onClick={() => setSelectedCategory(category)}
+                  className={`px-5 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                    selectedCategory === category
+                      ? "bg-amber-800 text-white"
+                      : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-300"
+                  }`}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Category Filter for Ingredients Tab */}
           {activeTab === "ingredients" && (
-            <button
-              onClick={() => setShowLowStockOnly(!showLowStockOnly)}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                showLowStockOnly
-                  ? "bg-red-100 text-red-800 border-2 border-red-300"
-                  : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-              }`}
-            >
-              {showLowStockOnly ? "✓ Low Stock Only" : "Low Stock Only"}
-            </button>
+            <div className="flex items-center gap-3 overflow-x-auto pb-2">
+              {[
+                "All",
+                ...Array.from(new Set(ingredients.map((i) => i.category))),
+              ].map((category) => (
+                <button
+                  key={category}
+                  onClick={() => setSelectedIngredientCategory(category)}
+                  className={`px-5 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                    selectedIngredientCategory === category
+                      ? "bg-amber-800 text-white"
+                      : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-300"
+                  }`}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
           )}
         </div>
 
@@ -1303,6 +1336,8 @@ export default function InventoryPage() {
                 setActiveTab("products");
                 setSearchQuery("");
                 setSortColumn("");
+                setSelectedCategory("All");
+                setSelectedIngredientCategory("All");
               }}
               className={`px-4 py-2 text-sm font-medium rounded-md flex items-center ${
                 activeTab === "products"
@@ -1318,6 +1353,8 @@ export default function InventoryPage() {
                 setSearchQuery("");
                 setSortColumn("");
                 setShowLowStockOnly(false);
+                setSelectedCategory("All");
+                setSelectedIngredientCategory("All");
               }}
               className={`ml-1 px-4 py-2 text-sm font-medium rounded-md flex items-center ${
                 activeTab === "ingredients"

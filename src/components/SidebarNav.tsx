@@ -1,8 +1,8 @@
-// components/SidebarNav.tsx
-"use client"; // <-- MUST be a client component
+// Sidebar navigation
+"use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation"; // <-- New hook
+import { usePathname } from "next/navigation";
 import {
   LuLayoutDashboard,
   LuBoxes,
@@ -12,7 +12,7 @@ import {
   LuSettings,
 } from "react-icons/lu";
 
-// Define all our navigation items
+// Nav items
 const navItems = [
   { name: "Dashboard", href: "/", icon: LuLayoutDashboard },
   { name: "Inventory", href: "/inventory", icon: LuBoxes },
@@ -24,7 +24,7 @@ const navItems = [
 ];
 
 export default function SidebarNav() {
-  const pathname = usePathname(); // <-- Gets the current path (e.g., "/coffee-pos")
+  const pathname = usePathname();
 
   return (
     <nav className="px-4 space-y-2">

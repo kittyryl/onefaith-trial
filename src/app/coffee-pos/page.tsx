@@ -1,7 +1,6 @@
-// app/coffee-pos/page.tsx
 "use client";
 
-import { useState, useEffect } from "react"; // Added useEffect
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import {
   LuSearch,
@@ -13,14 +12,17 @@ import {
   LuPrinter,
 } from "react-icons/lu";
 import { toast } from "react-toastify";
-import { v4 as uuidv4 } from "uuid"; // Use uuid
+import { v4 as uuidv4 } from "uuid";
 
-// --- INTERFACES ---
+// API base
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
+
+// Types
 interface Product {
   id: number;
   name: string;
   category: string;
-  price: number; // This will be a number after we parse it
+  price: number;
   needs_temp: boolean;
   image_url: string | null;
 }
@@ -44,7 +46,7 @@ interface OrderDetails {
   payment: "Cash" | "Gcash";
   cashTendered: number | null;
   changeDue: number | null;
-  discount_type: string | null; // Added for sales report
+  discount_type: string | null;
 }
 
 interface TempSelectionModalProps {
@@ -53,12 +55,10 @@ interface TempSelectionModalProps {
   onCancel: () => void;
 }
 
-// --- Hardcoded Placeholder Image ---
-// This is our fallback if a product has no image OR if an image fails to load
 const placeholderImage =
   "https://images.unsplash.com/photo-1514432324609-a0a200c3b0d5";
 
-// --- MODAL COMPONENTS ---
+// Modals
 
 function TempSelectionModal({
   product,
@@ -105,7 +105,6 @@ interface ReceiptModalProps {
 }
 
 function ReceiptModal({ order, onClose }: ReceiptModalProps) {
-  // This component displays the final receipt
   return (
     <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
       <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
@@ -203,7 +202,6 @@ function PaymentModal({
   cashTendered,
   setCashTendered,
 }: PaymentModalProps) {
-  // This component is the Numpad for cash payment
   const numpadKeys = [
     "1",
     "2",
@@ -289,12 +287,12 @@ function PaymentModal({
   );
 }
 
-// --- MAIN PAGE COMPONENT ---
+// POS
 export default function PosPage() {
-  // --- STATE ---
-  const [allProducts, setAllProducts] = useState<Product[]>([]); // Will be fetched from API
+  // State
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [allCategories, setAllCategories] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true); // Loading state
+  const [loading, setLoading] = useState(true);
 
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchTerm, setSearchTerm] = useState("");
@@ -320,29 +318,26 @@ export default function PosPage() {
     null
   );
 
-  // --- 1. FETCH PRODUCTS FROM DATABASE ---
+  // Fetch products
   useEffect(() => {
     const fetchProducts = async () => {
       try {
         setLoading(true);
-        // *** REMEMBER TO USE YOUR LAPTOP'S IP ADDRESS ***
-        const response = await fetch("http://192.168.1.4:5000/api/products");
+        const response = await fetch(`${API_BASE}/api/products`);
         if (!response.ok) {
           throw new Error("Failed to fetch products");
         }
 
         const data: Product[] = await response.json();
 
-        // Convert price from string (from DB) to number
         const products: Product[] = data.map((p) => ({
           ...p,
           price: Number(p.price),
-          needs_temp: Boolean(p.needs_temp), // Ensure boolean
+          needs_temp: Boolean(p.needs_temp),
         }));
 
         setAllProducts(products);
 
-        // Automatically create category list from products
         const categories = [...new Set(products.map((p) => p.category))];
         setAllCategories(["All", ...categories]);
         setSelectedCategory("All");
@@ -355,9 +350,9 @@ export default function PosPage() {
     };
 
     fetchProducts();
-  }, []); // Runs once on page load
+  }, []);
 
-  // --- 2. DERIVED DATA (Filtering) ---
+  // Derived
   const visibleProducts = allProducts
     .filter((product) => {
       return (
@@ -368,7 +363,7 @@ export default function PosPage() {
       return product.name.toLowerCase().includes(searchTerm.toLowerCase());
     });
 
-  // --- 3. HANDLERS (Cart, Modals, Payment) ---
+  // Handlers
 
   const handleAddToCart = (
     product: Product,
@@ -386,7 +381,7 @@ export default function PosPage() {
       handleIncrementQuantity(existingItem.cartId);
     } else {
       const newItem: CartItem = {
-        cartId: uuidv4(), // Use uuidv4()
+        cartId: uuidv4(),
         id: product.id,
         name: product.name,
         price: product.price,
@@ -444,15 +439,14 @@ export default function PosPage() {
   const discount = discountType ? subtotal * DISCOUNT_RATE : 0;
   const total = subtotal - discount;
 
-  // --- API Submission ---
+  // Submit order
   const submitOrderToAPI = async (orderDetails: OrderDetails) => {
     const payload = {
       orderDetails: orderDetails,
       businessUnit: "Coffee",
     };
     try {
-      // *** REMEMBER TO USE YOUR LAPTOP'S IP ADDRESS ***
-      const response = await fetch("http://192.168.1.4:5000/api/orders", {
+      const response = await fetch(`${API_BASE}/api/orders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -483,7 +477,7 @@ export default function PosPage() {
     }
 
     const baseOrder: OrderDetails = {
-      orderId: `ORD-${uuidv4().slice(0, 8)}`, // Use uuidv4()
+      orderId: `ORD-${uuidv4().slice(0, 8)}`,
       items: cart,
       subtotal: subtotal,
       discount: discount,
@@ -508,7 +502,7 @@ export default function PosPage() {
 
   const handleCashPaymentSubmit = async (cashAmount: number) => {
     const orderDetails: OrderDetails = {
-      orderId: `ORD-${uuidv4().slice(0, 8)}`, // Use uuidv4()
+      orderId: `ORD-${uuidv4().slice(0, 8)}`,
       items: cart,
       subtotal: subtotal,
       discount: discount,
@@ -536,7 +530,7 @@ export default function PosPage() {
     toast.success("New order started!");
   };
 
-  // --- RENDER ---
+  // UI
   return (
     <div className="flex h-screen bg-linear-to-br from-gray-50 to-gray-100 flex-col lg:flex-row">
       {/* Modals */}
@@ -560,9 +554,9 @@ export default function PosPage() {
         <ReceiptModal order={completedOrder} onClose={handleCloseReceipt} />
       )}
 
-      {/* ----- Products Section (Center) ----- */}
+      {/* Products */}
       <div className="flex-1 min-h-0 p-6 overflow-y-auto">
-        {/* Header: Search and Categories */}
+        {/* Search + categories */}
         <div className="relative mb-6">
           <LuSearch
             className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
@@ -577,7 +571,7 @@ export default function PosPage() {
           />
         </div>
 
-        {/* Category Filters */}
+        {/* Categories */}
         <div className="flex items-center gap-3 mb-6 overflow-x-auto pb-2">
           {allCategories.map((category) => (
             <button
@@ -594,11 +588,7 @@ export default function PosPage() {
           ))}
         </div>
 
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Coffee POS</h1>
-        <p className="text-gray-600 mb-6">
-          Search, filter, and tap a product to add it to the order
-        </p>
-        {/* Products Grid */}
+        {/* Product grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {loading ? (
             <div className="col-span-full h-64 flex items-center justify-center">
@@ -641,7 +631,7 @@ export default function PosPage() {
         </div>
       </div>
 
-      {/* ----- Current Order Section (Right) ----- */}
+      {/* Order */}
       <div className="w-full lg:w-[420px] bg-white p-6 border-t lg:border-l border-gray-200 flex flex-col shadow-lg">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold">Current Order</h2>
@@ -653,7 +643,7 @@ export default function PosPage() {
           </button>
         </div>
 
-        {/* Cart Items */}
+        {/* Cart */}
         <div className="flex-1 overflow-y-auto">
           {cart.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-400">
@@ -706,7 +696,7 @@ export default function PosPage() {
           )}
         </div>
 
-        {/* Order Summary */}
+        {/* Summary */}
         <div className="border-t border-gray-200 p-6 bg-gray-50">
           <div className="flex justify-between text-sm text-gray-600 mb-2">
             <span>Items</span>
@@ -737,7 +727,7 @@ export default function PosPage() {
             </span>
           </div>
 
-          {/* Discount Buttons */}
+          {/* Discounts */}
           <div className="mb-4">
             <label className="block text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">
               Apply Discount
@@ -780,7 +770,7 @@ export default function PosPage() {
             </div>
           </div>
 
-          {/* Order Type */}
+          {/* Order type */}
           <div className="mb-4">
             <label className="block text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">
               Order Type
@@ -809,7 +799,7 @@ export default function PosPage() {
             </div>
           </div>
 
-          {/* Payment Method */}
+          {/* Payment */}
           <div className="mb-4">
             <label className="block text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">
               Payment Method
