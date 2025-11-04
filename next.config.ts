@@ -1,14 +1,19 @@
-// next.config.js (or next.config.mjs)
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'images.unsplash.com',
+        hostname: 'res.cloudinary.com', // For your uploaded product images
         port: '',
-        pathname: '/**',
+        pathname: '**',
       },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com', // For our fallback placeholder
+        port: '',
+        pathname: '**',
+      }
     ],
   },
 };

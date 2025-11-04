@@ -1,7 +1,7 @@
-// app/page.tsx
+// app/coffee-pos/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react"; // Added useEffect
 import Image from "next/image";
 import {
   LuSearch,
@@ -10,20 +10,19 @@ import {
   LuPlus,
   LuMinus,
   LuTrash2,
-  LuPrinter, // Added for the receipt
+  LuPrinter,
 } from "react-icons/lu";
 import { toast } from "react-toastify";
-import { v4 as uuidv4 } from "uuid";
+import { v4 as uuidv4 } from "uuid"; // Use uuid
 
-// ----- (Interfaces: Product, CartItem) -----
-// (These remain the same)
+// --- INTERFACES ---
 interface Product {
   id: number;
   name: string;
   category: string;
-  price: number;
-  image: string;
-  needsTemp?: boolean;
+  price: number; // This will be a number after we parse it
+  needs_temp: boolean;
+  image_url: string | null;
 }
 
 interface CartItem {
@@ -35,7 +34,6 @@ interface CartItem {
   quantity: number;
 }
 
-// ----- NEW: Interface for a Completed Order -----
 interface OrderDetails {
   orderId: string;
   items: CartItem[];
@@ -44,9 +42,9 @@ interface OrderDetails {
   total: number;
   type: "Dine in" | "Take out";
   payment: "Cash" | "Gcash";
-  cashTendered: number | null; // <-- ADD THIS
-  changeDue: number | null; // <-- ADD THIS
-  discount_type: "Senior" | "PWD" | "Employee" | null;
+  cashTendered: number | null;
+  changeDue: number | null;
+  discount_type: string | null; // Added for sales report
 }
 
 interface TempSelectionModalProps {
@@ -55,106 +53,13 @@ interface TempSelectionModalProps {
   onCancel: () => void;
 }
 
-// --- (Product & Category Data) ---
-// (This data remains the same)
-const placeholderImage = "/images/cappuccino.jpg";
+// --- Hardcoded Placeholder Image ---
+// This is our fallback if a product has no image OR if an image fails to load
+const placeholderImage =
+  "https://images.unsplash.com/photo-1514432324609-a0a200c3b0d5";
 
-const allProducts: Product[] = [
-  {
-    id: 1,
-    name: "Espresso",
-    category: "Coffee",
-    price: 45,
-    image: placeholderImage,
-  },
-  {
-    id: 2,
-    name: "Doppio",
-    category: "Coffee",
-    price: 75,
-    image: placeholderImage,
-  },
-  {
-    id: 3,
-    name: "Latte",
-    category: "Coffee",
-    price: 145,
-    image: placeholderImage,
-  },
-  {
-    id: 4,
-    name: "Americano",
-    category: "Coffee",
-    price: 95,
-    image: placeholderImage,
-  },
-  {
-    id: 5,
-    name: "Affogato",
-    category: "Coffee",
-    price: 165,
-    image: placeholderImage,
-  },
-  {
-    id: 6,
-    name: "Cappuccino",
-    category: "Coffee",
-    price: 155,
-    needsTemp: true,
-    image: placeholderImage,
-  },
-  {
-    id: 7,
-    name: "Mocha",
-    category: "Coffee",
-    price: 165,
-    needsTemp: true,
-    image: placeholderImage,
-  },
-  {
-    id: 8,
-    name: "Almond Mocha",
-    category: "Coffee",
-    price: 175,
-    needsTemp: true,
-    image: placeholderImage,
-  },
-  {
-    id: 22,
-    name: "Chocolate",
-    category: "Non-Coffee",
-    price: 155,
-    image: placeholderImage,
-  },
-  {
-    id: 23,
-    name: "Matcha",
-    category: "Non-Coffee",
-    price: 155,
-    image: placeholderImage,
-  },
-  {
-    id: 24,
-    name: "Strawberry Latte",
-    category: "Non-Coffee",
-    price: 165,
-    image: placeholderImage,
-  },
-];
+// --- MODAL COMPONENTS ---
 
-const allCategories: string[] = [
-  "All Menu",
-  "Coffee",
-  "Non-Coffee",
-  "Fruitea",
-  "Frappe",
-  "Milk Tea",
-  "Series",
-  "Refreshers",
-];
-
-// --- (TempSelectionModal Component) ---
-// (This component remains the same)
 function TempSelectionModal({
   product,
   onSelect,
@@ -194,13 +99,13 @@ function TempSelectionModal({
   );
 }
 
-// ----- NEW: Receipt Modal Component -----
 interface ReceiptModalProps {
   order: OrderDetails;
   onClose: () => void;
 }
 
 function ReceiptModal({ order, onClose }: ReceiptModalProps) {
+  // This component displays the final receipt
   return (
     <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
       <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
@@ -209,7 +114,6 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
           <h2 className="text-2xl font-bold mt-4">Order Confirmed</h2>
           <p className="text-gray-500 text-sm">Order ID: {order.orderId}</p>
         </div>
-
         {/* Item List */}
         <div className="max-h-60 overflow-y-auto space-y-2 mb-4 border-t border-b py-4 border-dashed">
           {order.items.map((item) => (
@@ -232,7 +136,6 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
             </div>
           ))}
         </div>
-
         {/* Summary */}
         <div className="space-y-2 mb-6">
           <div className="flex justify-between">
@@ -249,8 +152,6 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
             <span>Total Due</span>
             <span>P{order.total.toFixed(2)}</span>
           </div>
-
-          {/* --- NEW CASH DETAILS --- */}
           {order.payment === "Cash" && (
             <div className="border-t border-dashed pt-2 mt-2">
               <div className="flex justify-between">
@@ -265,7 +166,6 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
               </div>
             </div>
           )}
-
           <div className="space-y-2 mt-4">
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">Order Type</span>
@@ -288,13 +188,12 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
   );
 }
 
-// ----- NEW: Payment Modal Component -----
 interface PaymentModalProps {
   totalDue: number;
   onClose: () => void;
-  onSubmit: (cashTendered: number) => void; // Passes the cash amount back
-  cashTendered: string; // From parent state
-  setCashTendered: (value: string) => void; // To update parent state
+  onSubmit: (cashTendered: number) => void;
+  cashTendered: string;
+  setCashTendered: (value: string) => void;
 }
 
 function PaymentModal({
@@ -304,7 +203,7 @@ function PaymentModal({
   cashTendered,
   setCashTendered,
 }: PaymentModalProps) {
-  // Numpad button values
+  // This component is the Numpad for cash payment
   const numpadKeys = [
     "1",
     "2",
@@ -317,25 +216,17 @@ function PaymentModal({
     "9",
     "00",
     "0",
-    "C", // C for Clear
+    "C",
   ];
-
-  // Handle clicks on the numpad
   const handleNumpadClick = (value: string) => {
-    if (value === "C") {
-      setCashTendered(""); // Clear the input
-    } else if (cashTendered.length < 10) {
-      // Limit input length
-      // Prevent leading zeros like "00" or "0" if empty
-      if ((value === "0" || value === "00") && cashTendered === "") {
-        return;
-      }
+    if (value === "C") setCashTendered("");
+    else if (cashTendered.length < 10) {
+      if ((value === "0" || value === "00") && cashTendered === "") return;
       setCashTendered(cashTendered + value);
     }
   };
-
-  // Handle the "Confirm" button click
-  const handleSubmit = () => {
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
     const cashAmount = parseFloat(cashTendered);
     if (isNaN(cashAmount) || cashTendered === "") {
       toast.error("Please enter a cash amount.");
@@ -345,71 +236,74 @@ function PaymentModal({
       toast.error("Cash amount is less than the total due.");
       return;
     }
-    // If valid, submit the amount
     onSubmit(cashAmount);
   };
-
   return (
     <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-sm">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-semibold">Cash Payment</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-800"
-          >
-            <LuX size={24} />
-          </button>
-        </div>
-
-        {/* Display */}
-        <div className="mb-4">
-          <div className="flex justify-between text-lg">
-            <span>Total Due:</span>
-            <span className="font-bold">P{totalDue.toFixed(2)}</span>
-          </div>
-          <div className="mt-2 p-3 bg-gray-100 rounded text-right text-3xl font-mono">
-            {/* Show a placeholder if empty, otherwise format as currency */}
-            {cashTendered ? (
-              `P${cashTendered}`
-            ) : (
-              <span className="text-gray-400">P0.00</span>
-            )}
-          </div>
-        </div>
-
-        {/* Numpad */}
-        <div className="grid grid-cols-3 gap-2 mb-4">
-          {numpadKeys.map((key) => (
+        <form onSubmit={handleSubmit}>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-xl font-semibold">Cash Payment</h3>
             <button
-              key={key}
-              onClick={() => handleNumpadClick(key)}
-              className="p-4 rounded-lg text-xl font-bold bg-gray-200 hover:bg-gray-300 cursor-pointer"
+              type="button"
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-800"
             >
-              {key}
+              <LuX size={24} />
             </button>
-          ))}
-        </div>
-
-        {/* Action Buttons */}
-        <button
-          onClick={handleSubmit}
-          className="w-full bg-emerald-600 text-white p-3 rounded-lg font-bold text-lg cursor-pointer"
-        >
-          Confirm Payment
-        </button>
+          </div>
+          <div className="mb-4">
+            <div className="flex justify-between text-lg">
+              <span>Total Due:</span>
+              <span className="font-bold">P{totalDue.toFixed(2)}</span>
+            </div>
+            <div className="mt-2 p-3 bg-gray-100 rounded text-right text-3xl font-mono">
+              {cashTendered ? (
+                `P${cashTendered}`
+              ) : (
+                <span className="text-gray-400">P0.00</span>
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            {numpadKeys.map((key) => (
+              <button
+                type="button"
+                key={key}
+                onClick={() => handleNumpadClick(key)}
+                className="p-4 rounded-lg text-xl font-bold bg-gray-200 hover:bg-gray-300 cursor-pointer"
+              >
+                {key}
+              </button>
+            ))}
+          </div>
+          <button
+            type="submit"
+            className="w-full bg-green-500 text-white p-3 rounded-lg font-bold text-lg cursor-pointer"
+          >
+            Confirm Payment
+          </button>
+        </form>
       </div>
     </div>
   );
 }
 
+// --- MAIN PAGE COMPONENT ---
 export default function PosPage() {
-  // --- (Existing States) ---
-  const [selectedCategory, setSelectedCategory] = useState<string>("All Menu");
+  // --- STATE ---
+  const [allProducts, setAllProducts] = useState<Product[]>([]); // Will be fetched from API
+  const [allCategories, setAllCategories] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true); // Loading state
+
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [searchTerm, setSearchTerm] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [productForModal, setProductForModal] = useState<Product | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-  const [searchTerm, setSearchTerm] = useState<string>("");
+
+  // Payment States
   const [orderType, setOrderType] = useState<"Dine in" | "Take out" | null>(
     null
   );
@@ -419,49 +313,80 @@ export default function PosPage() {
   const [discountType, setDiscountType] = useState<
     "Senior" | "PWD" | "Employee" | null
   >(null);
-
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState<boolean>(false);
   const [cashTendered, setCashTendered] = useState<string>("");
-
-  // ----- NEW: States for Receipt Modal -----
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState<boolean>(false);
   const [completedOrder, setCompletedOrder] = useState<OrderDetails | null>(
     null
   );
 
-  // ... (visibleProducts logic)
+  // --- 1. FETCH PRODUCTS FROM DATABASE ---
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setLoading(true);
+        // *** REMEMBER TO USE YOUR LAPTOP'S IP ADDRESS ***
+        const response = await fetch("http://192.168.1.4:5000/api/products");
+        if (!response.ok) {
+          throw new Error("Failed to fetch products");
+        }
+
+        const data: Product[] = await response.json();
+
+        // Convert price from string (from DB) to number
+        const products: Product[] = data.map((p) => ({
+          ...p,
+          price: Number(p.price),
+          needs_temp: Boolean(p.needs_temp), // Ensure boolean
+        }));
+
+        setAllProducts(products);
+
+        // Automatically create category list from products
+        const categories = [...new Set(products.map((p) => p.category))];
+        setAllCategories(["All", ...categories]);
+        setSelectedCategory("All");
+      } catch (error) {
+        console.error(error);
+        toast.error("Could not load products from database.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []); // Runs once on page load
+
+  // --- 2. DERIVED DATA (Filtering) ---
   const visibleProducts = allProducts
     .filter((product) => {
       return (
-        selectedCategory === "All Menu" || product.category === selectedCategory
+        selectedCategory === "All" || product.category === selectedCategory
       );
     })
     .filter((product) => {
       return product.name.toLowerCase().includes(searchTerm.toLowerCase());
     });
 
-  // ... (handleAddToCart, handleIncrementQuantity, handleDecrementQuantity, handleRemoveItem) ...
-  // (These functions remain the same)
+  // --- 3. HANDLERS (Cart, Modals, Payment) ---
+
   const handleAddToCart = (
     product: Product,
     selectedOption: string | null = null
   ) => {
-    if (product.needsTemp && !selectedOption) {
+    if (product.needs_temp && !selectedOption) {
       setProductForModal(product);
       setIsModalOpen(true);
       return;
     }
-
     const existingItem = cart.find(
       (item) => item.id === product.id && item.option === selectedOption
     );
-
     if (existingItem) {
       handleIncrementQuantity(existingItem.cartId);
     } else {
-      const cartItemId = uuidv4();
       const newItem: CartItem = {
-        cartId: cartItemId,
+        cartId: uuidv4(), // Use uuidv4()
         id: product.id,
         name: product.name,
         price: product.price,
@@ -470,35 +395,13 @@ export default function PosPage() {
       };
       setCart((prevCart) => [...prevCart, newItem]);
     }
-
     setIsModalOpen(false);
     setProductForModal(null);
   };
 
-  const submitOrderToAPI = async (orderDetails: OrderDetails) => {
-    const payload = {
-      orderDetails: orderDetails,
-      businessUnit: "Coffee", // Correctly identifies the source
-    };
-
-    try {
-      const response = await fetch("http://192.168.1.4:5000/api/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Server responded with status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      toast.success(`Order ${result.orderId} Saved!`);
-      return result;
-    } catch (error) {
-      console.error("API Submission Error:", error);
-      toast.error("Failed to save order to database.");
-      return null;
+  const handleModalSelection = (selectedOption: "Hot" | "Cold") => {
+    if (productForModal) {
+      handleAddToCart(productForModal, selectedOption);
     }
   };
 
@@ -526,51 +429,61 @@ export default function PosPage() {
     setCart((prevCart) => prevCart.filter((item) => item.cartId !== cartId));
   };
 
-  const handleModalSelection = (selectedOption: "Hot" | "Cold") => {
-    if (productForModal) {
-      handleAddToCart(productForModal, selectedOption);
-    }
-  };
-
   const clearCart = () => {
     setCart([]);
+    setDiscountType(null);
+    setOrderType(null);
+    setPaymentMethod(null);
   };
 
   const subtotal = cart.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0
   );
-
   const DISCOUNT_RATE = 0.2;
-
   const discount = discountType ? subtotal * DISCOUNT_RATE : 0;
-
   const total = subtotal - discount;
 
-  // ...
+  // --- API Submission ---
+  const submitOrderToAPI = async (orderDetails: OrderDetails) => {
+    const payload = {
+      orderDetails: orderDetails,
+      businessUnit: "Coffee",
+    };
+    try {
+      // *** REMEMBER TO USE YOUR LAPTOP'S IP ADDRESS ***
+      const response = await fetch("http://192.168.1.4:5000/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) throw new Error("Server responded with an error.");
+      const result = await response.json();
+      toast.success(`Order ${result.orderId} Saved!`);
+      return result;
+    } catch (error) {
+      console.error("API Submission Error:", error);
+      toast.error("Failed to save order to database.");
+      return null;
+    }
+  };
 
-  // ... (inside your PosPage component)
-
-  // ----- UPDATED: Proceed to Payment Function -----
   const handleProceedToPayment = async () => {
-    // ADD ASYNC HERE
-    // 1. Validation Checks (remain the same)
     if (cart.length === 0) {
-      toast.error("Cannot proceed: The cart is empty.");
+      toast.error("Cart is empty.");
       return;
     }
     if (!orderType) {
-      toast.error("Cannot proceed: Please select an Order Type.");
+      toast.error("Please select an Order Type.");
       return;
     }
     if (!paymentMethod) {
-      toast.error("Cannot proceed: Please select a Payment Method.");
+      toast.error("Please select a Payment Method.");
       return;
     }
 
     const baseOrder: OrderDetails = {
-      // ... (define the order structure as before)
-      orderId: `ORD-${uuidv4().slice(0, 8)}`,
+      orderId: `ORD-${uuidv4().slice(0, 8)}`, // Use uuidv4()
       items: cart,
       subtotal: subtotal,
       discount: discount,
@@ -582,93 +495,74 @@ export default function PosPage() {
       changeDue: null,
     };
 
-    // 2. Decide if it's Cash (open numpad) or Gcash (submit immediately)
     if (paymentMethod === "Gcash") {
-      // Submit the order to the API before showing the receipt
-      const submissionResult = await submitOrderToAPI(baseOrder); // AWAIT HERE
-
+      const submissionResult = await submitOrderToAPI(baseOrder);
       if (submissionResult) {
-        // Only show the receipt if the database save was successful
         setCompletedOrder(baseOrder);
         setIsReceiptModalOpen(true);
       }
     } else if (paymentMethod === "Cash") {
-      // Open the numpad modal
       setIsPaymentModalOpen(true);
     }
   };
-  // ----- NEW: Handler for Closing the Receipt -----
-  const handleCloseReceipt = () => {
-    setIsReceiptModalOpen(false); // Close modal
-    clearCart(); // Clear cart
-    setDiscountType(null);
-    setOrderType(null); // Reset options
-    setPaymentMethod(null);
-    setCompletedOrder(null); // Clear the completed order
-    toast.success("New order started!"); // Give feedback
+
+  const handleCashPaymentSubmit = async (cashAmount: number) => {
+    const orderDetails: OrderDetails = {
+      orderId: `ORD-${uuidv4().slice(0, 8)}`, // Use uuidv4()
+      items: cart,
+      subtotal: subtotal,
+      discount: discount,
+      total: total,
+      type: orderType!,
+      payment: "Cash",
+      discount_type: discountType,
+      cashTendered: cashAmount,
+      changeDue: cashAmount - total,
+    };
+
+    const submissionResult = await submitOrderToAPI(orderDetails);
+    if (submissionResult) {
+      setCompletedOrder(orderDetails);
+      setIsPaymentModalOpen(false);
+      setIsReceiptModalOpen(true);
+      setCashTendered("");
+    }
   };
 
+  const handleCloseReceipt = () => {
+    setIsReceiptModalOpen(false);
+    clearCart();
+    setCompletedOrder(null);
+    toast.success("New order started!");
+  };
+
+  // --- RENDER ---
   return (
-    <div className="flex h-full">
-      {/* --- (Temp Selection Modal) --- */}
+    <div className="flex h-screen bg-linear-to-br from-gray-50 to-gray-100 flex-col lg:flex-row">
+      {/* Modals */}
       {isModalOpen && productForModal && (
         <TempSelectionModal
           product={productForModal}
           onSelect={handleModalSelection}
-          onCancel={() => {
-            setIsModalOpen(false);
-            setProductForModal(null);
-          }}
+          onCancel={() => setIsModalOpen(false)}
         />
       )}
-
-      {/* ----- NEW: Receipt Modal ----- */}
-      {isReceiptModalOpen && completedOrder && (
-        <ReceiptModal order={completedOrder} onClose={handleCloseReceipt} />
-      )}
-
-      {/* ----- MODAL LAYER 3 (ADD IT HERE) ----- */}
-      {/* Your NEW Payment Modal (the numpad) */}
       {isPaymentModalOpen && (
         <PaymentModal
           totalDue={total}
-          onClose={() => {
-            setIsPaymentModalOpen(false); // Close the modal
-            setCashTendered(""); // Clear the cash input
-          }}
-          onSubmit={async (cashAmount) => {
-            // ADD ASYNC HERE
-            const orderDetails: OrderDetails = {
-              orderId: `ORD-${uuidv4().slice(0, 8)}`,
-              items: cart,
-              subtotal: subtotal,
-              discount: discount,
-              total: total,
-              type: orderType!,
-              payment: "Cash",
-              discount_type: discountType,
-              cashTendered: cashAmount,
-              changeDue: cashAmount - total,
-            };
-
-            const submissionResult = await submitOrderToAPI(orderDetails);
-
-            if (submissionResult) {
-              // Only proceed if the database save was successful
-              setCompletedOrder(orderDetails);
-              setIsPaymentModalOpen(false);
-              setIsReceiptModalOpen(true);
-              setCashTendered("");
-            }
-          }}
+          onClose={() => setIsPaymentModalOpen(false)}
+          onSubmit={handleCashPaymentSubmit}
           cashTendered={cashTendered}
           setCashTendered={setCashTendered}
         />
       )}
+      {isReceiptModalOpen && completedOrder && (
+        <ReceiptModal order={completedOrder} onClose={handleCloseReceipt} />
+      )}
 
       {/* ----- Products Section (Center) ----- */}
-      {/* (This section remains the same) */}
-      <div className="flex-1 p-8 overflow-y-auto">
+      <div className="flex-1 min-h-0 p-6 overflow-y-auto">
+        {/* Header: Search and Categories */}
         <div className="relative mb-6">
           <LuSearch
             className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
@@ -676,12 +570,14 @@ export default function PosPage() {
           />
           <input
             type="text"
-            placeholder="Search..."
-            className="w-full pl-12 pr-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Search products..."
+            className="w-full pl-12 pr-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
+
+        {/* Category Filters */}
         <div className="flex items-center gap-3 mb-6 overflow-x-auto pb-2">
           {allCategories.map((category) => (
             <button
@@ -689,43 +585,64 @@ export default function PosPage() {
               onClick={() => setSelectedCategory(category)}
               className={`px-5 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
                 selectedCategory === category
-                  ? "bg-amber-900 text-white"
-                  : "bg-white text-gray-700 hover:bg-amber-100"
+                  ? "bg-amber-800 text-white"
+                  : "bg-white text-gray-700 hover:bg-gray-50"
               }`}
             >
               {category}
             </button>
           ))}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {visibleProducts.map((product) => (
-            <div
-              key={product.id}
-              className="bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={() => handleAddToCart(product)}
-            >
-              <Image
-                src={product.image}
-                alt={product.name}
-                width={300}
-                height={200}
-                className="w-full h-40 object-cover"
-              />
-              <div className="p-4">
-                <h3 className="text-lg font-semibold">{product.name}</h3>
-                <p className="text-gray-500 text-sm">{product.category}</p>
-                <p className="text-lg font-bold mt-2">
-                  P{product.price.toFixed(2)}
-                </p>
-              </div>
+
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Coffee POS</h1>
+        <p className="text-gray-600 mb-6">
+          Search, filter, and tap a product to add it to the order
+        </p>
+        {/* Products Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {loading ? (
+            <div className="col-span-full h-64 flex items-center justify-center">
+              <div className="animate-spin text-amber-800 text-5xl">⏳</div>
             </div>
-          ))}
+          ) : (
+            visibleProducts.map((product) => (
+              <div
+                key={product.id}
+                className="group bg-white rounded-xl shadow-sm overflow-hidden cursor-pointer hover:shadow-xl transition-all duration-300 border border-gray-100"
+                onClick={() => handleAddToCart(product)}
+              >
+                <Image
+                  src={product.image_url || placeholderImage}
+                  alt={product.name}
+                  width={300}
+                  height={200}
+                  className="w-full h-40 object-cover group-hover:scale-[1.01] transition-transform"
+                  // Add an error fallback for broken images
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = placeholderImage;
+                  }}
+                />
+                <div className="p-4">
+                  <h3 className="text-lg font-semibold text-gray-900 group-hover:text-amber-700 transition-colors">
+                    {product.name}
+                  </h3>
+                  <p className="text-gray-500 text-sm">{product.category}</p>
+                  <p className="text-lg font-bold mt-2 text-gray-900">
+                    ₱
+                    {product.price.toLocaleString("en-PH", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </p>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
       {/* ----- Current Order Section (Right) ----- */}
-      {/* (This section remains the same, but the buttons are now state-driven) */}
-      <div className="w-96 bg-white p-6 border-l border-gray-200 h-full flex flex-col">
+      <div className="w-full lg:w-[420px] bg-white p-6 border-t lg:border-l border-gray-200 flex flex-col shadow-lg">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold">Current Order</h2>
           <button
@@ -736,6 +653,7 @@ export default function PosPage() {
           </button>
         </div>
 
+        {/* Cart Items */}
         <div className="flex-1 overflow-y-auto">
           {cart.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-400">
@@ -743,38 +661,42 @@ export default function PosPage() {
               <p className="mt-4">No items selected</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {cart.map((item) => (
-                <div key={item.cartId} className="flex items-center gap-4">
+                <div
+                  key={item.cartId}
+                  className="flex items-center gap-3 bg-gray-50 rounded-lg p-4 border border-gray-100 hover:border-gray-200 transition-colors"
+                >
                   <div className="flex-1">
-                    <h4 className="font-semibold">{item.name}</h4>
+                    <h4 className="font-semibold text-gray-900">{item.name}</h4>
                     {item.option && (
                       <p className="text-sm text-gray-500">{item.option}</p>
                     )}
-                    <p className="text-base font-semibold">
-                      P{(item.price * item.quantity).toFixed(2)}
+                    <p className="text-base font-semibold mt-1 text-gray-900">
+                      ₱{(item.price * item.quantity).toLocaleString()}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleDecrementQuantity(item.cartId)}
-                      className="p-1 rounded-full bg-gray-200 hover:bg-gray-300"
+                      className="p-1.5 rounded-md bg-white border border-gray-200 hover:bg-gray-100"
                     >
-                      <LuMinus size={16} />
+                      <LuMinus size={16} className="text-gray-700" />
                     </button>
-                    <span className="font-bold w-6 text-center">
+                    <span className="font-bold w-8 text-center text-gray-900">
                       {item.quantity}
                     </span>
                     <button
                       onClick={() => handleIncrementQuantity(item.cartId)}
-                      className="p-1 rounded-full bg-gray-200 hover:bg-gray-300"
+                      className="p-1.5 rounded-md bg-white border border-gray-200 hover:bg-gray-100"
                     >
-                      <LuPlus size={16} />
+                      <LuPlus size={16} className="text-gray-700" />
                     </button>
                   </div>
                   <button
                     onClick={() => handleRemoveItem(item.cartId)}
-                    className="text-red-500 hover:text-red-700"
+                    className="text-gray-400 hover:text-red-500"
+                    title="Remove item"
                   >
                     <LuTrash2 size={18} />
                   </button>
@@ -784,124 +706,144 @@ export default function PosPage() {
           )}
         </div>
 
-        <div className="border-t pt-6">
-          <div className="flex  justify-between mb-2">
+        {/* Order Summary */}
+        <div className="border-t border-gray-200 p-6 bg-gray-50">
+          <div className="flex justify-between text-sm text-gray-600 mb-2">
             <span>Items</span>
-            <span>{cart.reduce((sum, item) => sum + item.quantity, 0)}</span>
+            <span className="font-medium">
+              {cart.reduce((sum, item) => sum + item.quantity, 0)}
+            </span>
           </div>
-          <div className="flex justify-between mb-2">
+          <div className="flex justify-between text-sm text-gray-600 mb-2">
             <span>Subtotal</span>
-            <span>P{subtotal.toFixed(2)}</span>
+            <span className="font-medium">
+              ₱
+              {subtotal.toLocaleString("en-PH", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </span>
           </div>
-          <div className="flex justify-between mb-4">
-            <span>Discount</span>
-            <span>P{discount.toFixed(2)}</span>
-          </div>
-
-          {/* ----- NEW DISCOUNT BUTTONS ----- */}
-          <div className="grid grid-cols-4 gap-2 mb-4">
-            <button
-              onClick={() => setDiscountType("Senior")}
-              className={`p-2 rounded-lg border text-xs ${
-                discountType === "Senior"
-                  ? "bg-amber-900 text-white"
-                  : "hover:bg-amber-100"
-              }`}
-            >
-              Senior
-            </button>
-            <button
-              onClick={() => setDiscountType("PWD")}
-              className={`p-2 rounded-lg border text-xs ${
-                discountType === "PWD"
-                  ? "bg-amber-900 text-white"
-                  : "hover:bg-amber-100"
-              }`}
-            >
-              PWD
-            </button>
-            <button
-              onClick={() => setDiscountType("Employee")}
-              className={`p-2 rounded-lg border text-xs ${
-                discountType === "Employee"
-                  ? "bg-amber-900 text-white"
-                  : "hover:bg-amber-100"
-              }`}
-            >
-              Employee
-            </button>
-            <button
-              onClick={() => setDiscountType(null)} // Clear discount
-              className="p-2 rounded-lg border text-xs text-red-500 hover:bg-gray-50"
-            >
-              Clear
-            </button>
-          </div>
-          {/* ----- END OF NEW BUTTONS ----- */}
-
-          <div className="flex justify-between items-center text-xl font-bold mb-6">
-            <span>Total</span>
-            <span>P{total.toFixed(2)}</span>
+          <div className="flex justify-between text-sm mb-4">
+            <span className="text-red-600">
+              Discount{discountType ? ` (${discountType})` : ""}
+            </span>
+            <span className="font-medium text-red-600">
+              - ₱
+              {discount.toLocaleString("en-PH", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </span>
           </div>
 
+          {/* Discount Buttons */}
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-2">Order Type</label>
-            <div className="grid grid-cols-2 gap-2">
+            <label className="block text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">
+              Apply Discount
+            </label>
+            <div className="grid grid-cols-4 gap-2">
+              {(["Senior", "PWD", "Employee"] as const).map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setDiscountType(type)}
+                  className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                    discountType === type
+                      ? "bg-amber-600 text-white shadow-md"
+                      : "bg-white border border-gray-200 text-gray-700 hover:border-amber-300 hover:bg-amber-50"
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
               <button
-                onClick={() => setOrderType("Dine in")}
-                className={`p-3 rounded-lg border text-center cursor-pointer ${
-                  orderType === "Dine in"
-                    ? "bg-amber-900 text-white border-amber-900"
-                    : "border-gray-300 hover:bg-gray-50"
-                }`}
+                onClick={() => setDiscountType(null)}
+                className="px-3 py-2 rounded-lg text-xs font-medium bg-white border border-gray-200 text-red-600 hover:bg-red-50 hover:border-red-300 transition-all"
               >
-                Dine in
-              </button>
-              <button
-                onClick={() => setOrderType("Take out")}
-                className={`p-3 rounded-lg border text-center cursor-pointer ${
-                  orderType === "Take out"
-                    ? "bg-amber-900 text-white border-amber-900"
-                    : "border-gray-300 hover:bg-gray-50"
-                }`}
-              >
-                Take out
+                Clear
               </button>
             </div>
           </div>
-          <div className="mb-6">
-            <label className="block text-sm font-medium mb-2">
+
+          <div className="bg-white rounded-lg p-4 mb-4 border-2 border-gray-900">
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
+                Total
+              </span>
+              <span className="text-2xl font-bold text-gray-900">
+                ₱
+                {total.toLocaleString("en-PH", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </span>
+            </div>
+          </div>
+
+          {/* Order Type */}
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">
+              Order Type
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setOrderType("Dine in")}
+                className={`px-4 py-3 rounded-lg font-medium transition-all ${
+                  orderType === "Dine in"
+                    ? "bg-amber-600 text-white shadow-md"
+                    : "bg-white border border-gray-200 text-gray-700 hover:border-amber-300 hover:bg-amber-50"
+                }`}
+              >
+                🍽️ Dine in
+              </button>
+              <button
+                onClick={() => setOrderType("Take out")}
+                className={`px-4 py-3 rounded-lg font-medium transition-all ${
+                  orderType === "Take out"
+                    ? "bg-amber-600 text-white shadow-md"
+                    : "bg-white border border-gray-200 text-gray-700 hover:border-amber-300 hover:bg-amber-50"
+                }`}
+              >
+                🥡 Take out
+              </button>
+            </div>
+          </div>
+
+          {/* Payment Method */}
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">
               Payment Method
             </label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => setPaymentMethod("Cash")}
-                className={`p-3 rounded-lg border text-center cursor-pointer ${
+                className={`px-4 py-3 rounded-lg font-medium transition-all ${
                   paymentMethod === "Cash"
-                    ? "bg-amber-900 text-white border-amber-900"
-                    : "border-gray-300 hover:bg-gray-50"
+                    ? "bg-amber-600 text-white shadow-md"
+                    : "bg-white border border-gray-200 text-gray-700 hover:border-amber-300 hover:bg-amber-50"
                 }`}
               >
-                Cash
+                💵 Cash
               </button>
               <button
                 onClick={() => setPaymentMethod("Gcash")}
-                className={`p-3 rounded-lg border text-center cursor-pointer ${
+                className={`px-4 py-3 rounded-lg font-medium transition-all ${
                   paymentMethod === "Gcash"
-                    ? "bg-amber-900 text-white border-amber-900"
-                    : "border-gray-300 hover:bg-gray-50"
+                    ? "bg-amber-600 text-white shadow-md"
+                    : "bg-white border border-gray-200 text-gray-700 hover:border-amber-300 hover:bg-amber-50"
                 }`}
               >
-                Gcash
+                📱 GCash
               </button>
             </div>
           </div>
 
           <button
             onClick={handleProceedToPayment}
-            className="w-full bg-amber-900 text-white p-3 rounded-lg font-bold cursor-pointer"
+            className="w-full bg-linear-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed disabled:shadow-none"
+            disabled={cart.length === 0}
           >
-            Proceed to Payment
+            {cart.length === 0 ? "Add Items to Continue" : "Proceed to Payment"}
           </button>
         </div>
       </div>

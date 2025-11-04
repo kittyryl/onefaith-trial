@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   LuCar,
   LuX,
@@ -8,10 +8,11 @@ import {
   LuMinus,
   LuTrash2,
   LuPrinter,
-  LuPencilLine,
 } from "react-icons/lu";
 import { toast } from "react-toastify";
 import { v4 as uuidv4 } from "uuid"; // For unique cart IDs
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
 
 // --- 1. INTERFACES ---
 
@@ -388,6 +389,11 @@ export default function CarwashPosPage() {
   const [selectedService, setSelectedService] = useState<CarwashService | null>(
     null
   );
+  const [currentOrderId, setCurrentOrderId] = useState<string | null>(null);
+  // Customer details
+  const [plateNumber, setPlateNumber] = useState<string>("");
+  const [customerName, setCustomerName] = useState<string>("");
+  const [customerPhone, setCustomerPhone] = useState<string>("");
 
   // Payment States
   const [discountType, setDiscountType] = useState<
@@ -407,6 +413,9 @@ export default function CarwashPosPage() {
     service: CarwashService,
     priceInfo: ServicePrice
   ) => {
+    if (!currentOrderId) {
+      setCurrentOrderId(`ORD-${uuidv4().slice(0, 8)}`);
+    }
     const existingItem = cart.find(
       (item) =>
         item.serviceId === service.id && item.vehicle === priceInfo.vehicle
@@ -456,6 +465,9 @@ export default function CarwashPosPage() {
     setCart([]);
     setDiscountType(null);
     setPaymentMethod(null);
+    setPlateNumber("");
+    setCustomerName("");
+    setCustomerPhone("");
   };
 
   // --- Calculation ---
@@ -467,19 +479,70 @@ export default function CarwashPosPage() {
   const discount = discountType ? subtotal * DISCOUNT_RATE : 0;
   const total = subtotal - discount;
 
+  // --- Carwash Service Queue Upsert ---
+  const upsertCarwashServiceTicket = useCallback(
+    async (status: "queue" | "in_progress" | "completed" = "queue") => {
+      if (!currentOrderId || cart.length === 0) return;
+
+      const serviceItems = cart.map((it) => ({
+        service_name: it.serviceName,
+        vehicle: it.vehicle,
+        price: it.price,
+        quantity: it.quantity,
+      }));
+
+      const inferredVehicleType = cart[0]?.vehicle || null;
+
+      try {
+        await fetch(`${API_BASE}/api/carwash/services`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            order_id: currentOrderId,
+            status,
+            vehicle_type: inferredVehicleType,
+            plate_number: plateNumber || null,
+            customer_name: customerName || null,
+            customer_phone: customerPhone || null,
+            payment_method: null,
+            total,
+            items: serviceItems,
+          }),
+        });
+      } catch (e) {
+        // Silent fail for now to not block POS flow
+        console.error("Failed to upsert carwash service ticket:", e);
+      }
+    },
+    [currentOrderId, cart, total, plateNumber, customerName, customerPhone]
+  );
+
+  // Keep the queue ticket up-to-date when cart or details change (debounced)
+  useEffect(() => {
+    if (!currentOrderId || cart.length === 0) return;
+    const t = setTimeout(() => {
+      upsertCarwashServiceTicket("queue");
+    }, 300);
+    return () => clearTimeout(t);
+  }, [
+    cart,
+    currentOrderId,
+    total,
+    plateNumber,
+    customerName,
+    customerPhone,
+    upsertCarwashServiceTicket,
+  ]);
+
   // --- API Submission ---
   const submitOrderToAPI = async (orderDetails: CarwashOrderDetails) => {
     const payload = {
-      orderDetails: {
-        ...orderDetails,
-        order_type: null, // Ensure order_type is null for carwash
-      },
+      orderDetails: orderDetails,
       businessUnit: "Carwash", // Identify the source as Carwash
     };
 
     try {
-      // NOTE: Ensure your IP address is correct
-      const response = await fetch("http://192.168.1.4:5000/api/orders", {
+      const response = await fetch(`${API_BASE}/api/orders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -506,9 +569,12 @@ export default function CarwashPosPage() {
       toast.error("Please select a Payment Method.");
       return;
     }
+    if (!currentOrderId) {
+      setCurrentOrderId(`ORD-${uuidv4().slice(0, 8)}`);
+    }
 
     const baseOrder: CarwashOrderDetails = {
-      orderId: `ORD-${uuidv4().slice(0, 8)}`,
+      orderId: currentOrderId || `ORD-${uuidv4().slice(0, 8)}`,
       items: cart,
       subtotal: subtotal,
       discount: discount,
@@ -532,8 +598,11 @@ export default function CarwashPosPage() {
   };
 
   const handleCashPaymentSubmit = async (cashAmount: number) => {
+    if (!currentOrderId) {
+      setCurrentOrderId(`ORD-${uuidv4().slice(0, 8)}`);
+    }
     const orderDetails: CarwashOrderDetails = {
-      orderId: `ORD-${uuidv4().slice(0, 8)}`,
+      orderId: currentOrderId || `ORD-${uuidv4().slice(0, 8)}`,
       items: cart,
       subtotal: subtotal,
       discount: discount,
@@ -546,6 +615,7 @@ export default function CarwashPosPage() {
     };
     const submissionResult = await submitOrderToAPI(orderDetails);
     if (submissionResult) {
+      // Mark the queue ticket as completed via orders API side-effect; no need to upsert here
       setCompletedOrder(orderDetails);
       setIsPaymentModalOpen(false);
       setIsReceiptModalOpen(true);
@@ -557,12 +627,13 @@ export default function CarwashPosPage() {
     setIsReceiptModalOpen(false);
     clearCart();
     setCompletedOrder(null);
+    setCurrentOrderId(null);
     toast.success("New order started!");
   };
 
   // --- RENDER ---
   return (
-    <div className="flex h-full">
+    <div className="flex h-screen bg-linear-to-br from-gray-50 to-gray-100 flex-col lg:flex-row">
       {/* Modals */}
       {selectedService && (
         <VehicleSelectionModal
@@ -585,28 +656,40 @@ export default function CarwashPosPage() {
       )}
 
       {/* ----- Services Section (Center) ----- */}
-      <div className="flex-1 p-8 overflow-y-auto">
-        <h1 className="text-2xl font-bold mb-6">Carwash POS</h1>
-        {/* --- UPDATED LAYOUT --- */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="flex-1 min-h-0 p-6 overflow-y-auto">
+        <h1 className="text-3xl font-bold mb-2 text-gray-900">
+          Carwash Services
+        </h1>
+        <p className="text-gray-600 mb-6">
+          Select services and vehicle types to begin your order
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {allServices.map((service) => (
             <div
               key={service.id}
               onClick={() => setSelectedService(service)}
-              className="bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow flex flex-col justify-between p-6 h-full"
+              className="group bg-white rounded-xl shadow-sm overflow-hidden cursor-pointer hover:shadow-xl transition-all duration-300 border border-gray-100 p-6 h-full"
             >
               <div>
-                <span className="text-xs text-blue-500 font-semibold uppercase">
+                <span className="text-xs text-blue-600 font-semibold uppercase">
                   {service.category}
                 </span>
-                <h3 className="text-lg font-bold mt-1 mb-2">{service.name}</h3>
-                <p className="text-gray-600 text-sm mb-4">
+                <h3 className="text-lg font-bold mt-1 mb-2 group-hover:text-blue-600 transition-colors">
+                  {service.name}
+                </h3>
+                <p className="text-gray-600 text-sm mb-4 line-clamp-2">
                   {service.description}
                 </p>
               </div>
-              <p className="text-lg font-bold text-gray-800 mt-2">
-                P{Math.min(...service.prices.map((p) => p.price))} - P
-                {Math.max(...service.prices.map((p) => p.price))}
+              <p className="text-lg font-bold text-gray-900 mt-2">
+                ₱
+                {Math.min(
+                  ...service.prices.map((p) => p.price)
+                ).toLocaleString()}{" "}
+                - ₱
+                {Math.max(
+                  ...service.prices.map((p) => p.price)
+                ).toLocaleString()}
               </p>
             </div>
           ))}
@@ -614,7 +697,7 @@ export default function CarwashPosPage() {
       </div>
 
       {/* ----- Current Order Section (Right) ----- */}
-      <div className="w-96 bg-white p-6 border-l border-gray-200 h-full flex flex-col">
+      <div className="w-full lg:w-[420px] bg-white p-6 border-t lg:border-l border-gray-200 flex flex-col shadow-lg">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold">Current Order</h2>
           <button
@@ -625,6 +708,46 @@ export default function CarwashPosPage() {
           </button>
         </div>
 
+        {/* Order Summary */}
+        <div className="bg-gray-50 rounded-lg p-4 border border-gray-100 mb-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                Customer Name
+              </label>
+              <input
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="e.g. Juan Dela Cruz"
+                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                Phone
+              </label>
+              <input
+                value={customerPhone}
+                onChange={(e) => setCustomerPhone(e.target.value)}
+                placeholder="e.g. 09XXXXXXXXX"
+                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                Plate Number
+              </label>
+              <input
+                value={plateNumber}
+                onChange={(e) => setPlateNumber(e.target.value.toUpperCase())}
+                placeholder="e.g. ABC1234"
+                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 uppercase"
+              />
+            </div>
+            {/* Vehicle Type is inferred from the first cart item; no manual input */}
+          </div>
+        </div>
+
         {/* Cart Items */}
         <div className="flex-1 overflow-y-auto">
           {cart.length === 0 ? (
@@ -633,36 +756,42 @@ export default function CarwashPosPage() {
               <p className="mt-4">No services selected</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {cart.map((item) => (
-                <div key={item.cartId} className="flex items-center gap-3">
+                <div
+                  key={item.cartId}
+                  className="flex items-center gap-3 bg-gray-50 rounded-lg p-4 border border-gray-100 hover:border-gray-200 transition-colors"
+                >
                   <div className="flex-1">
-                    <h4 className="font-semibold">{item.serviceName}</h4>
+                    <h4 className="font-semibold text-gray-900">
+                      {item.serviceName}
+                    </h4>
                     <p className="text-sm text-gray-500">{item.vehicle}</p>
-                    <p className="text-base font-semibold mt-1">
-                      P{(item.price * item.quantity).toFixed(2)}
+                    <p className="text-base font-semibold mt-1 text-gray-900">
+                      ₱{(item.price * item.quantity).toLocaleString()}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleDecrementQuantity(item.cartId)}
-                      className="p-1 rounded-full bg-gray-200 hover:bg-gray-300 cursor-pointer"
+                      className="p-1.5 rounded-md bg-white border border-gray-200 hover:bg-gray-100 cursor-pointer"
                     >
-                      <LuMinus size={16} />
+                      <LuMinus size={16} className="text-gray-700" />
                     </button>
-                    <span className="font-bold w-6 text-center">
+                    <span className="font-bold w-8 text-center text-gray-900">
                       {item.quantity}
                     </span>
                     <button
                       onClick={() => handleIncrementQuantity(item.cartId)}
-                      className="p-1 rounded-full bg-gray-200 hover:bg-gray-300 cursor-pointer"
+                      className="p-1.5 rounded-md bg-white border border-gray-200 hover:bg-gray-100 cursor-pointer"
                     >
-                      <LuPlus size={16} />
+                      <LuPlus size={16} className="text-gray-700" />
                     </button>
                   </div>
                   <button
                     onClick={() => handleRemoveItem(item.cartId)}
-                    className="text-red-500 hover:text-red-700 cursor-pointer"
+                    className="text-gray-400 hover:text-red-500 cursor-pointer"
+                    title="Remove item"
                   >
                     <LuTrash2 size={18} />
                   </button>
@@ -672,103 +801,117 @@ export default function CarwashPosPage() {
           )}
         </div>
 
-        {/* Order Summary */}
-        <div className="border-t pt-6">
-          <div className="flex justify-between mb-2">
+        {/* Customer Details */}
+        <div className="border-t border-gray-200 p-6 bg-gray-50">
+          <div className="flex justify-between text-sm text-gray-600 mb-2">
             <span>Items</span>
-            <span>{cart.reduce((sum, item) => sum + item.quantity, 0)}</span>
+            <span className="font-medium">
+              {cart.reduce((sum, item) => sum + item.quantity, 0)}
+            </span>
           </div>
-          <div className="flex justify-between mb-2">
+          <div className="flex justify-between text-sm text-gray-600 mb-2">
             <span>Subtotal</span>
-            <span>P{subtotal.toFixed(2)}</span>
+            <span className="font-medium">
+              ₱
+              {subtotal.toLocaleString("en-PH", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </span>
           </div>
-          <div className="flex justify-between mb-2">
-            <span>Discount</span>
-            <span className="font-semibold text-red-500">
-              - P{discount.toFixed(2)}
+          <div className="flex justify-between text-sm mb-4">
+            <span className="text-red-600">
+              Discount{discountType ? ` (${discountType})` : ""}
+            </span>
+            <span className="font-medium text-red-600">
+              - ₱
+              {discount.toLocaleString("en-PH", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
             </span>
           </div>
 
           {/* Discount Buttons */}
-          <div className="grid grid-cols-4 gap-2 mb-4">
-            <button
-              onClick={() => setDiscountType("Senior")}
-              className={`p-2 rounded-lg border text-xs cursor-pointer ${
-                discountType === "Senior"
-                  ? "bg-amber-800 text-white"
-                  : "hover:bg-gray-50"
-              }`}
-            >
-              Senior
-            </button>
-            <button
-              onClick={() => setDiscountType("PWD")}
-              className={`p-2 rounded-lg border text-xs cursor-pointer ${
-                discountType === "PWD"
-                  ? "bg-amber-800 text-white"
-                  : "hover:bg-gray-50"
-              }`}
-            >
-              PWD
-            </button>
-            <button
-              onClick={() => setDiscountType("Employee")}
-              className={`p-2 rounded-lg border text-xs cursor-pointer ${
-                discountType === "Employee"
-                  ? "bg-amber-800 text-white"
-                  : "hover:bg-gray-50"
-              }`}
-            >
-              Employee
-            </button>
-            <button
-              onClick={() => setDiscountType(null)}
-              className="p-2 rounded-lg border text-xs text-red-500 hover:bg-gray-50 cursor-pointer"
-            >
-              Clear
-            </button>
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">
+              Apply Discount
+            </label>
+            <div className="grid grid-cols-4 gap-2">
+              {(["Senior", "PWD", "Employee"] as const).map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setDiscountType(type)}
+                  className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                    discountType === type
+                      ? "bg-amber-600 text-white shadow-md"
+                      : "bg-white border border-gray-200 text-gray-700 hover:border-amber-300 hover:bg-amber-50"
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+              <button
+                onClick={() => setDiscountType(null)}
+                className="px-3 py-2 rounded-lg text-xs font-medium bg-white border border-gray-200 text-red-600 hover:bg-red-50 hover:border-red-300 transition-all"
+              >
+                Clear
+              </button>
+            </div>
           </div>
 
-          <div className="flex justify-between items-center text-xl font-bold mb-6">
-            <span>Total</span>
-            <span>P{total.toFixed(2)}</span>
+          <div className="bg-white rounded-lg p-4 mb-4 border-2 border-gray-900">
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
+                Total
+              </span>
+              <span className="text-2xl font-bold text-gray-900">
+                ₱
+                {total.toLocaleString("en-PH", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </span>
+            </div>
           </div>
 
           {/* Payment Method Buttons */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium mb-2">
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">
               Payment Method
             </label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => setPaymentMethod("Cash")}
-                className={`p-2 rounded-lg border text-center cursor-pointer ${
+                className={`px-4 py-3 rounded-lg font-medium transition-all ${
                   paymentMethod === "Cash"
-                    ? "bg-amber-800 text-white border-amber-800"
-                    : "border-gray-300 hover:bg-gray-50"
+                    ? "bg-amber-600 text-white shadow-md"
+                    : "bg-white border border-gray-200 text-gray-700 hover:border-amber-300 hover:bg-amber-50"
                 }`}
               >
-                Cash
+                💵 Cash
               </button>
               <button
                 onClick={() => setPaymentMethod("Gcash")}
-                className={`p-2 rounded-lg border text-center cursor-pointer ${
+                className={`px-4 py-3 rounded-lg font-medium transition-all ${
                   paymentMethod === "Gcash"
-                    ? "bg-amber-800 text-white border-amber-800"
-                    : "border-gray-300 hover:bg-gray-50"
+                    ? "bg-amber-600 text-white shadow-md"
+                    : "bg-white border border-gray-200 text-gray-700 hover:border-amber-300 hover:bg-amber-50"
                 }`}
               >
-                Gcash
+                📱 GCash
               </button>
             </div>
           </div>
 
           <button
             onClick={handleProceedToPayment}
-            className="w-full bg-amber-800 text-white p-3 rounded-lg font-bold cursor-pointer disabled:bg-gray-400"
+            className="w-full bg-linear-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed disabled:shadow-none"
             disabled={cart.length === 0}
           >
-            Proceed to Payment
+            {cart.length === 0
+              ? "Add Services to Continue"
+              : "Proceed to Payment"}
           </button>
         </div>
       </div>

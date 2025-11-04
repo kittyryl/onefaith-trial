@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image"; // Import Next.js Image
 import {
   LuPencilLine,
   LuTrash2,
@@ -8,7 +9,10 @@ import {
   LuPlus,
   LuX,
   LuCoffee,
-  LuFlaskConical as LuFlask,
+  LuFlaskConical as LuFlask, // Use the icon you specified
+  LuSearch,
+  LuArrowUpDown,
+  LuDownload,
 } from "react-icons/lu";
 import { toast } from "react-toastify";
 
@@ -29,7 +33,7 @@ interface Product {
   category: string;
   price: number;
   needs_temp: boolean;
-  image_url: string;
+  image_url: string | null; // Image URL can be null
 }
 
 interface FormData {
@@ -40,6 +44,7 @@ interface FormData {
   required_stock?: number;
   price?: number;
   needs_temp?: boolean;
+  image_url?: string | null; // Added for product image
 }
 
 // --- MODAL COMPONENT PROPS ---
@@ -108,7 +113,7 @@ function ConfirmDeleteModal({
   );
 }
 
-// 1. General Item Form Modal (Handles both Ingredient & Product)
+// 1. General Item Form Modal (Handles Image Upload)
 function ItemFormModal({
   initialData,
   onClose,
@@ -117,45 +122,46 @@ function ItemFormModal({
 }: ItemFormModalProps) {
   const isEdit = !!initialData;
   const isIngredient =
-    (isEdit && "required_stock" in initialData) || // Check if editing an ingredient
-    (!isEdit && activeTab === "ingredients"); // Check if ADDING a new ingredient
+    (isEdit && "required_stock" in initialData) ||
+    (!isEdit && activeTab === "ingredients");
 
-  // --- STATES ---
+  // --- States ---
   const [name, setName] = useState<string>(initialData?.name || "");
   const [category, setCategory] = useState<string>(initialData?.category || "");
-
-  // --- CORRECTED LOGIC FOR USESTATE ---
-  // Ingredient States
   const [unitOfMeasure, setUnitOfMeasure] = useState<string>(
-    // Only check initialData properties if isEdit is true
     isEdit && isIngredient && "unit_of_measure" in initialData
       ? initialData.unit_of_measure || ""
       : ""
   );
   const [requiredStock, setRequiredStock] = useState<string>(
-    // Only check initialData properties if isEdit is true
     isEdit && isIngredient && "required_stock" in initialData
       ? String(initialData.required_stock || 0)
       : "0"
   );
-
-  // Product States
   const [price, setPrice] = useState<string>(
-    // Only check initialData properties if isEdit is true
-    isEdit && !isIngredient && "price" in initialData
+    isEdit && !isIngredient && initialData && "price" in initialData
       ? String(initialData.price)
       : "0"
   );
   const [needsTemp, setNeedsTemp] = useState<boolean>(
-    // Only check initialData properties if isEdit is true
-    isEdit && !isIngredient && "needs_temp" in initialData
+    isEdit && !isIngredient && initialData && "needs_temp" in initialData
       ? initialData.needs_temp
       : false
   );
-  // --- END OF FIX ---
+
+  // --- NEW STATES for File Upload ---
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState<boolean>(false);
+  // Store the URL (either existing or newly uploaded)
+  const [imageUrl] = useState<string | null>(
+    isEdit && !isIngredient && initialData && "image_url" in initialData
+      ? initialData.image_url
+      : null
+  );
 
   const categories = isIngredient
     ? [
+        // Raw Ingredient Categories
         "Sauce",
         "Syrups",
         "Powder",
@@ -164,14 +170,21 @@ function ItemFormModal({
         "Jams",
         "Liquor",
         "Condiments",
+        "Coffee", // For beans, milk, etc.
+        "Sinkers", // From your spreadsheet
       ]
     : [
-        "Coffee",
-        "Non-Coffee",
+        // POS Product Categories (from your menu)
+        "Espresso Bar",
+        "Coffee-Based",
+        "Non-Coffee-Based",
         "Frappe / Smoothie",
-        "Cheesecake Series",
-        "Fruitea",
         "Milk Tea",
+        "Fruitea",
+        "Cheesecake Series",
+        "Yogurt Series",
+        "Mocktails",
+        "Refreshers",
       ];
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -181,8 +194,40 @@ function ItemFormModal({
       return;
     }
 
-    const baseData: FormData = { id: initialData?.id, name, category };
+    setUploading(true);
+    let finalImageUrl = imageUrl; // Start with the existing image URL (if any)
 
+    // --- 1. Handle File Upload FIRST ---
+    if (selectedFile) {
+      const fileFormData = new FormData();
+      fileFormData.append("image", selectedFile);
+
+      try {
+        // *** REMEMBER TO USE YOUR LAPTOP'S IP ADDRESS ***
+        const uploadResponse = await fetch(
+          "http://192.168.1.4:5000/api/upload",
+          {
+            method: "POST",
+            body: fileFormData,
+          }
+        );
+
+        if (!uploadResponse.ok) {
+          throw new Error("Image upload failed.");
+        }
+        const uploadResult = await uploadResponse.json();
+        finalImageUrl = uploadResult.image_url; // Get the new Cloudinary URL
+      } catch (error: unknown) {
+        const message =
+          error instanceof Error ? error.message : "Upload failed";
+        toast.error(`Upload Error: ${message}`);
+        setUploading(false);
+        return; // Stop if upload fails
+      }
+    }
+
+    // --- 2. Prepare the final data to save ---
+    const baseData: FormData = { id: initialData?.id, name, category };
     const data: FormData = isIngredient
       ? {
           ...baseData,
@@ -193,9 +238,12 @@ function ItemFormModal({
           ...baseData,
           price: parseFloat(price) || 0,
           needs_temp: needsTemp,
+          image_url: finalImageUrl, // Save the new or existing URL
         };
 
+    // --- 3. Call the parent save function ---
     await onSave(data);
+    setUploading(false);
   };
 
   return (
@@ -209,14 +257,15 @@ function ItemFormModal({
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-800"
+            disabled={uploading}
+            className="text-gray-500 hover:text-gray-800 disabled:opacity-50"
           >
             <LuX size={24} />
           </button>
         </div>
         <form onSubmit={handleSubmit}>
-          <div className="space-y-4">
-            {/* NAME & CATEGORY (Universal) */}
+          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+            {/* ... (Name and Category inputs) ... */}
             <div>
               <label className="block text-sm font-medium text-gray-700">
                 Name
@@ -229,7 +278,6 @@ function ItemFormModal({
                 required
               />
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700">
                 Category
@@ -264,7 +312,6 @@ function ItemFormModal({
                     placeholder="e.g., Bottle, mL"
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
                     Required Stock (Min.)
@@ -300,6 +347,31 @@ function ItemFormModal({
                   />
                 </div>
 
+                {/* --- NEW FILE UPLOAD FIELD --- */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Product Image
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/png, image/jpeg, image/webp"
+                    onChange={(e) =>
+                      setSelectedFile(e.target.files ? e.target.files[0] : null)
+                    }
+                    className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100"
+                  />
+                  {selectedFile ? (
+                    <div className="mt-2 text-sm text-green-600">
+                      File selected: {selectedFile.name}
+                    </div>
+                  ) : imageUrl ? (
+                    <div className="mt-2 text-sm text-gray-500">
+                      Current image: {imageUrl.substring(0, 50)}...
+                    </div>
+                  ) : null}
+                </div>
+                {/* --- END OF NEW FIELD --- */}
+
                 <div className="flex items-center">
                   <input
                     type="checkbox"
@@ -322,17 +394,23 @@ function ItemFormModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              disabled={uploading}
+              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-700"
+              disabled={uploading}
+              className="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-700 flex items-center justify-center min-w-[120px] disabled:bg-gray-400"
             >
-              {isEdit
-                ? "Save Changes"
-                : `Save ${isIngredient ? "Ingredient" : "Product"}`}
+              {uploading ? (
+                <span className="animate-spin">⏳</span>
+              ) : isEdit ? (
+                "Save Changes"
+              ) : (
+                `Save ${isIngredient ? "Ingredient" : "Product"}`
+              )}
             </button>
           </div>
         </form>
@@ -341,8 +419,9 @@ function ItemFormModal({
   );
 }
 
-// 2. Stock Movement Modal (Already defined and working)
+// 2. Stock Movement Modal
 function StockMovementModal({
+  // ... (This component remains unchanged)
   ingredient,
   onClose,
   onRecordMovement,
@@ -375,7 +454,6 @@ function StockMovementModal({
         <h3 className="text-xl text-amber-800 mb-6">Item: {ingredient.name}</h3>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
-            {/* Movement Type Selector */}
             <div>
               <label className="block text-sm font-medium text-gray-700">
                 Movement Type
@@ -416,8 +494,6 @@ function StockMovementModal({
                 </button>
               </div>
             </div>
-
-            {/* Quantity Input */}
             <div>
               <label className="block text-sm font-medium text-gray-700">
                 Quantity ({ingredient.unit_of_measure})
@@ -431,8 +507,6 @@ function StockMovementModal({
                 required
               />
             </div>
-
-            {/* Notes */}
             <div>
               <label className="block text-sm font-medium text-gray-700">
                 Notes (Supplier, Waste Reason, etc.)
@@ -469,7 +543,7 @@ function StockMovementModal({
 export default function InventoryPage() {
   const [activeTab, setActiveTab] = useState<"ingredients" | "products">(
     "products"
-  ); // Start on the Products tab
+  );
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -478,7 +552,6 @@ export default function InventoryPage() {
   const [isMovementModalOpen, setIsMovementModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
 
-  // States for editing/selection
   const [selectedIngredient, setSelectedIngredient] =
     useState<Ingredient | null>(null);
   const [itemToEdit, setItemToEdit] = useState<Ingredient | Product | null>(
@@ -488,44 +561,137 @@ export default function InventoryPage() {
     null
   );
 
+  // --- Filter and Sort States ---
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showLowStockOnly, setShowLowStockOnly] = useState(false);
+  const [sortColumn, setSortColumn] = useState<string>("");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+  // --- CSV Export Functions ---
+  const exportProductsToCSV = () => {
+    const dataToExport = filteredAndSortedProducts();
+
+    if (dataToExport.length === 0) {
+      toast.warning("No products to export");
+      return;
+    }
+
+    const headers = [
+      "Product Name",
+      "Category",
+      "Price (₱)",
+      "Needs Hot/Cold",
+      "Image URL",
+    ];
+    const rows = dataToExport.map((product) => [
+      product.name,
+      product.category,
+      Number(product.price).toFixed(2),
+      product.needs_temp ? "Yes" : "No",
+      product.image_url || "N/A",
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+    ].join("\n");
+
+    downloadCSV(
+      csvContent,
+      `products-${new Date().toISOString().split("T")[0]}.csv`
+    );
+    toast.success(`Exported ${dataToExport.length} products to CSV`);
+  };
+
+  const exportIngredientsToCSV = () => {
+    const dataToExport = filteredAndSortedIngredients();
+
+    if (dataToExport.length === 0) {
+      toast.warning("No ingredients to export");
+      return;
+    }
+
+    const headers = [
+      "Ingredient Name",
+      "Category",
+      "Unit",
+      "Required Stock",
+      "Current Stock",
+      "Status",
+    ];
+    const rows = dataToExport.map((ingredient) => [
+      ingredient.name,
+      ingredient.category,
+      ingredient.unit_of_measure || "N/A",
+      ingredient.required_stock,
+      ingredient.current_stock,
+      ingredient.current_stock <= ingredient.required_stock
+        ? "Low Stock"
+        : "OK",
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+    ].join("\n");
+
+    downloadCSV(
+      csvContent,
+      `ingredients-${new Date().toISOString().split("T")[0]}.csv`
+    );
+    toast.success(`Exported ${dataToExport.length} ingredients to CSV`);
+  };
+
+  const downloadCSV = (content: string, filename: string) => {
+    const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // --- API Handlers ---
 
   const fetchAllData = async () => {
     setLoading(true);
     try {
+      // *** REMEMBER TO USE YOUR LAPTOP'S IP ADDRESS ***
+      const API_URL = "http://192.168.1.4:5000";
+
       const [ingResponse, prodResponse] = await Promise.all([
-        fetch("http://localhost:5000/api/ingredients"),
-        fetch("http://localhost:5000/api/products"),
+        fetch(`${API_URL}/api/ingredients`),
+        fetch(`${API_URL}/api/products`),
       ]);
 
       const ingData: Ingredient[] = ingResponse.ok
         ? await ingResponse.json()
         : [];
-
-      const prodDataRaw: Array<
-        Omit<Product, "price"> & { price: string | number }
-      > = prodResponse.ok ? await prodResponse.json() : [];
+      const prodDataRaw: Product[] = prodResponse.ok
+        ? await prodResponse.json()
+        : [];
 
       const prodData: Product[] = prodDataRaw.map((p) => ({
         ...p,
-        price: Number(p.price), // Fix for price being a string
+        price: Number(p.price),
       }));
 
       setIngredients(ingData);
       setProducts(prodData);
-    } catch (error) {
+    } catch {
       toast.error("Could not load all inventory data.");
     } finally {
       setLoading(false);
     }
   };
 
-  // --- COMBINED SAVE/UPDATE HANDLER (for Products/Ingredients) ---
+  // --- COMBINED SAVE/UPDATE HANDLER ---
   const handleSaveOrUpdate = async (data: FormData) => {
-    // Determine if it's an ingredient or product based on form data properties
-    const isIngredient =
-      data.unit_of_measure !== undefined || data.required_stock !== undefined;
-
+    const isIngredient = activeTab === "ingredients";
     let endpoint = "";
     const method = data.id ? "PUT" : "POST";
 
@@ -536,7 +702,8 @@ export default function InventoryPage() {
     }
 
     try {
-      const response = await fetch(`http://localhost:5000${endpoint}`, {
+      // *** REMEMBER TO USE YOUR LAPTOP'S IP ADDRESS ***
+      const response = await fetch(`http://192.168.1.4:5000${endpoint}`, {
         method: method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
@@ -550,7 +717,7 @@ export default function InventoryPage() {
       toast.success(
         `${data.name} ${method === "POST" ? "added" : "updated"} successfully!`
       );
-      fetchAllData(); // Refresh both lists
+      fetchAllData();
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : "An error occurred";
@@ -560,7 +727,7 @@ export default function InventoryPage() {
     setItemToEdit(null);
   };
 
-  // --- Stock Movement Handler (Existing Logic) ---
+  // --- Stock Movement Handler ---
   const handleRecordMovement = async (data: {
     quantity: number;
     movement_type: "IN" | "OUT" | "AUDIT";
@@ -569,8 +736,9 @@ export default function InventoryPage() {
     if (!selectedIngredient) return;
     try {
       const payload = { ...data, ingredient_id: selectedIngredient.id };
+      // *** REMEMBER TO USE YOUR LAPTOP'S IP ADDRESS ***
       const response = await fetch(
-        "http://localhost:5000/api/ingredients/movement",
+        "http://192.168.1.4:5000/api/ingredients/movement",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -583,7 +751,7 @@ export default function InventoryPage() {
         `${data.quantity} recorded as ${data.movement_type} for ${selectedIngredient.name}.`
       );
       fetchAllData();
-    } catch (error) {
+    } catch {
       toast.error("Error recording movement.");
     }
   };
@@ -598,7 +766,8 @@ export default function InventoryPage() {
       : `/api/products/${id}`;
 
     try {
-      const response = await fetch(`http://localhost:5000${endpoint}`, {
+      // *** REMEMBER TO USE YOUR LAPTOP'S IP ADDRESS ***
+      const response = await fetch(`http://192.168.1.4:5000${endpoint}`, {
         method: "DELETE",
       });
 
@@ -608,7 +777,7 @@ export default function InventoryPage() {
       }
 
       toast.success(`${name} deleted successfully!`);
-      fetchAllData(); // Refresh data after delete
+      fetchAllData();
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : "An error occurred";
@@ -636,8 +805,7 @@ export default function InventoryPage() {
   };
 
   const openDeleteConfirmation = (item: Ingredient | Product) => {
-    setItemToEdit(item); // Note: This should be setItemToDelete
-    setItemToDelete(item); // Corrected
+    setItemToDelete(item);
     setIsDeleteModalOpen(true);
   };
 
@@ -646,180 +814,394 @@ export default function InventoryPage() {
     fetchAllData();
   }, []);
 
+  // --- Filter and Sort Logic ---
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortColumn(column);
+      setSortDirection("asc");
+    }
+  };
+
+  const filteredAndSortedIngredients = () => {
+    let filtered = ingredients.filter((ing) =>
+      ing.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    if (showLowStockOnly) {
+      filtered = filtered.filter(
+        (ing) => ing.current_stock <= ing.required_stock
+      );
+    }
+
+    if (sortColumn) {
+      filtered.sort((a, b) => {
+        let aVal: string | number = "";
+        let bVal: string | number = "";
+
+        switch (sortColumn) {
+          case "name":
+            aVal = a.name.toLowerCase();
+            bVal = b.name.toLowerCase();
+            break;
+          case "category":
+            aVal = a.category.toLowerCase();
+            bVal = b.category.toLowerCase();
+            break;
+          case "current_stock":
+            aVal = a.current_stock;
+            bVal = b.current_stock;
+            break;
+          case "required_stock":
+            aVal = a.required_stock;
+            bVal = b.required_stock;
+            break;
+          default:
+            return 0;
+        }
+
+        if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
+        if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return filtered;
+  };
+
+  const filteredAndSortedProducts = () => {
+    const filtered = products.filter((prod) =>
+      prod.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    if (sortColumn) {
+      filtered.sort((a, b) => {
+        let aVal: string | number = "";
+        let bVal: string | number = "";
+
+        switch (sortColumn) {
+          case "name":
+            aVal = a.name.toLowerCase();
+            bVal = b.name.toLowerCase();
+            break;
+          case "category":
+            aVal = a.category.toLowerCase();
+            bVal = b.category.toLowerCase();
+            break;
+          case "price":
+            aVal = a.price;
+            bVal = b.price;
+            break;
+          default:
+            return 0;
+        }
+
+        if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
+        if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return filtered;
+  };
+
   if (loading)
     return (
-      <div className="p-8 text-center text-gray-500">Loading Inventory...</div>
+      <div className="min-h-screen bg-linear-to-br from-amber-50 via-white to-rose-50 p-8 flex items-center justify-center">
+        <div className="flex items-center space-x-3 text-gray-600">
+          <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-amber-600" />
+          <span className="text-sm">Loading Inventory…</span>
+        </div>
+      </div>
     );
 
   // --- RENDER FUNCTIONS ---
+  // (These are defined inside the main component to access its state and handlers)
 
-  const renderIngredientTable = () => (
-    <div className="bg-white p-6 rounded-lg shadow overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
-            <th className="w-48 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Ingredient
-            </th>
-            <th className="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Category
-            </th>
-            <th className="w-20 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Unit
-            </th>
-            <th className="w-24 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Required
-            </th>
-            <th className="w-32 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Current Stock
-            </th>
-            <th className="w-36 px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Actions
-            </th>
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
-          {ingredients.map((ingredient) => (
-            <tr key={ingredient.id}>
-              <td className="w-48 px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 truncate">
-                {ingredient.name}
-              </td>
-              <td className="w-24 px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {ingredient.category}
-              </td>
-              <td className="w-20 px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {ingredient.unit_of_measure || "N/A"}
-              </td>
+  const renderIngredientTable = () => {
+    const dataToDisplay = filteredAndSortedIngredients();
 
-              <td className="w-24 px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                {ingredient.required_stock} {ingredient.unit_of_measure}
-              </td>
+    const SortableHeader = ({
+      column,
+      label,
+      className = "",
+    }: {
+      column: string;
+      label: string;
+      className?: string;
+    }) => (
+      <th
+        className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none ${className}`}
+        onClick={() => handleSort(column)}
+      >
+        <div className="flex items-center space-x-1">
+          <span>{label}</span>
+          <LuArrowUpDown
+            size={14}
+            className={
+              sortColumn === column ? "text-amber-600" : "text-gray-400"
+            }
+          />
+        </div>
+      </th>
+    );
 
-              <td className="w-32 px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-bold">
-                <span
-                  className={`px-2 py-1 inline-flex justify-center w-16 text-xs leading-5 font-semibold rounded-lg ${
-                    ingredient.current_stock <= ingredient.required_stock
-                      ? "bg-red-500 text-white"
-                      : "bg-green-100 text-green-800"
-                  }`}
-                >
-                  {ingredient.current_stock}
-                </span>
-              </td>
+    return (
+      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <SortableHeader
+                column="name"
+                label="Ingredient"
+                className="w-48"
+              />
+              <SortableHeader
+                column="category"
+                label="Category"
+                className="w-24"
+              />
+              <th className="w-20 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Unit
+              </th>
+              <SortableHeader
+                column="required_stock"
+                label="Required"
+                className="w-24"
+              />
+              <SortableHeader
+                column="current_stock"
+                label="Current Stock"
+                className="w-32"
+              />
+              <th className="w-36 px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {dataToDisplay.map((ingredient) => {
+              const isLow =
+                ingredient.current_stock <= ingredient.required_stock;
+              const showBar = (ingredient.required_stock || 0) > 0;
+              const pct = showBar
+                ? Math.max(
+                    0,
+                    Math.min(
+                      100,
+                      Math.round(
+                        (ingredient.current_stock / ingredient.required_stock) *
+                          100
+                      )
+                    )
+                  )
+                : 0;
+              return (
+                <tr key={ingredient.id} className="hover:bg-gray-50/80">
+                  <td className="w-48 px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 truncate">
+                    {ingredient.name}
+                  </td>
+                  <td className="w-24 px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {ingredient.category}
+                  </td>
+                  <td className="w-20 px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {ingredient.unit_of_measure || "N/A"}
+                  </td>
+                  <td className="w-24 px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    {ingredient.required_stock} {ingredient.unit_of_measure}
+                  </td>
+                  <td className="w-32 px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
+                    <div className="flex flex-col">
+                      <span
+                        className={`px-2 py-1 inline-flex justify-center w-16 text-xs leading-5 font-semibold rounded-lg ${
+                          isLow
+                            ? "bg-red-500 text-white"
+                            : "bg-emerald-100 text-emerald-800"
+                        }`}
+                      >
+                        {ingredient.current_stock}
+                      </span>
+                      {showBar && (
+                        <div className="mt-2 h-1.5 w-24 rounded-full bg-gray-100">
+                          <div
+                            className={`h-1.5 rounded-full ${
+                              isLow ? "bg-red-500" : "bg-emerald-500"
+                            }`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                  <td className="w-36 px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <div className="flex items-center justify-end space-x-4">
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => openEditForm(ingredient)}
+                          className="text-amber-600 hover:text-amber-900 cursor-pointer"
+                        >
+                          <LuPencilLine size={18} />
+                        </button>
+                        <button
+                          onClick={() => openDeleteConfirmation(ingredient)}
+                          className="text-red-600 hover:text-red-900 cursor-pointer"
+                        >
+                          <LuTrash2 size={18} />
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => openMovementModal(ingredient)}
+                        className="bg-amber-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-amber-700 transition-colors shadow-sm"
+                      >
+                        Stock IN/OUT
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {dataToDisplay.length === 0 && !loading && (
+          <p className="text-center py-10 text-gray-500">
+            {searchQuery || showLowStockOnly
+              ? "No ingredients match your filters."
+              : "No raw ingredients found."}
+          </p>
+        )}
+      </div>
+    );
+  };
 
-              <td className="w-36 px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex items-center justify-end space-x-3">
-                <div className="flex items-center space-x-2">
+  const renderProductTable = () => {
+    const dataToDisplay = filteredAndSortedProducts();
+
+    const SortableHeader = ({
+      column,
+      label,
+      className = "",
+    }: {
+      column: string;
+      label: string;
+      className?: string;
+    }) => (
+      <th
+        className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none ${className}`}
+        onClick={() => handleSort(column)}
+      >
+        <div className="flex items-center space-x-1">
+          <span>{label}</span>
+          <LuArrowUpDown
+            size={14}
+            className={
+              sortColumn === column ? "text-amber-600" : "text-gray-400"
+            }
+          />
+        </div>
+      </th>
+    );
+
+    return (
+      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              {/* UPDATED: Added Image header */}
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Image
+              </th>
+              <SortableHeader column="name" label="Product Name" />
+              <SortableHeader column="category" label="Category" />
+              <SortableHeader column="price" label="Price (₱)" />
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Hot/Cold
+              </th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {dataToDisplay.map((product) => (
+              <tr key={product.id} className="hover:bg-gray-50/80">
+                {/* UPDATED: Added Image cell */}
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <Image
+                    src={
+                      product.image_url && product.image_url.trim() !== ""
+                        ? product.image_url
+                        : "/images/placeholder.svg"
+                    }
+                    alt={product.name}
+                    width={40}
+                    height={40}
+                    className="w-10 h-10 rounded-md object-cover ring-1 ring-gray-200"
+                  />
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  {product.name}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {product.category}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 tabular-nums font-semibold">
+                  {Number(product.price).toLocaleString("en-PH", {
+                    style: "currency",
+                    currency: "PHP",
+                  })}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <span
+                    className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      product.needs_temp
+                        ? "bg-orange-100 text-orange-800"
+                        : "bg-gray-100 text-gray-500"
+                    }`}
+                  >
+                    {product.needs_temp ? "Yes" : "No"}
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <button
-                    onClick={() => openEditForm(ingredient)}
-                    className="text-amber-600 hover:text-amber-900 cursor-pointer"
+                    onClick={() => openEditForm(product)}
+                    className="text-amber-600 hover:text-amber-900 cursor-pointer mr-2"
                   >
                     <LuPencilLine size={18} />
                   </button>
                   <button
-                    onClick={() => openDeleteConfirmation(ingredient)}
+                    onClick={() => openDeleteConfirmation(product)}
                     className="text-red-600 hover:text-red-900 cursor-pointer"
                   >
                     <LuTrash2 size={18} />
                   </button>
-                </div>
-                <button
-                  onClick={() => openMovementModal(ingredient)}
-                  className="bg-amber-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-amber-700 transition-colors"
-                >
-                  Stock IN/OUT
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {ingredients.length === 0 && !loading && (
-        <p className="text-center py-10 text-gray-500">
-          No raw ingredients found.
-        </p>
-      )}
-    </div>
-  );
-
-  const renderProductTable = () => (
-    <div className="bg-white p-6 rounded-lg shadow overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Product Name
-            </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Category
-            </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Price (P)
-            </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Hot/Cold
-            </th>
-            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Actions
-            </th>
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
-          {products.map((product) => (
-            <tr key={product.id}>
-              <td className="px-6 py-4 whitespace-nowGrap text-sm font-medium text-gray-900">
-                {product.name}
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {product.category}
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                P{Number(product.price).toFixed(2)}
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                <span
-                  className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                    product.needs_temp
-                      ? "bg-orange-100 text-orange-800"
-                      : "bg-gray-100 text-gray-500"
-                  }`}
-                >
-                  {product.needs_temp ? "Yes" : "No"}
-                </span>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                <button
-                  onClick={() => openEditForm(product)}
-                  className="text-amber-600 hover:text-amber-900 cursor-pointer mr-2"
-                >
-                  <LuPencilLine size={18} />
-                </button>
-                <button
-                  onClick={() => openDeleteConfirmation(product)}
-                  className="text-red-600 hover:text-red-900 cursor-pointer"
-                >
-                  <LuTrash2 size={18} />
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {products.length === 0 && !loading && (
-        <p className="text-center py-10 text-gray-500">
-          No POS products found. Add items to your Coffee menu.
-        </p>
-      )}
-    </div>
-  );
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {dataToDisplay.length === 0 && !loading && (
+          <p className="text-center py-10 text-gray-500">
+            {searchQuery
+              ? "No products match your search."
+              : "No POS products found. Add items to your Coffee menu."}
+          </p>
+        )}
+      </div>
+    );
+  };
 
   return (
-    <div className="p-8">
+    <div className="min-h-screen bg-linear-to-br from-amber-50 via-white to-rose-50 p-4 sm:p-6 lg:p-8">
       {/* Modal Rendering: Delete Confirmation */}
       {isDeleteModalOpen && itemToDelete && (
         <ConfirmDeleteModal
           itemId={itemToDelete.id!}
           itemName={itemToDelete.name}
-          onClose={() => setIsDeleteModalOpen(false)}
+          onClose={() => {
+            setIsDeleteModalOpen(false);
+            setItemToDelete(null);
+          }}
           onConfirm={handleDeleteItem}
           activeTab={activeTab}
         />
@@ -842,56 +1224,119 @@ export default function InventoryPage() {
       {isMovementModalOpen && selectedIngredient && (
         <StockMovementModal
           ingredient={selectedIngredient}
-          onClose={() => setIsMovementModalOpen(false)}
+          onClose={() => {
+            setIsMovementModalOpen(false);
+            setSelectedIngredient(null);
+          }}
           onRecordMovement={handleRecordMovement}
         />
       )}
 
       {/* Header and Tabs */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold flex items-center">
-          <LuPackage size={30} className="mr-3 text-gray-700" />
-          Inventory Management
-        </h1>
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={openNewForm}
-            className="bg-amber-800 text-white px-4 py-2 rounded-lg flex items-center hover:bg-amber-700 transition-colors"
-          >
-            <LuPlus size={18} className="mr-2" />
-            {activeTab === "ingredients" ? "Add Ingredient" : "Add POS Product"}
-          </button>
+      <div className="max-w-7xl mx-auto">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+          <h1 className="text-2xl md:text-3xl font-bold flex items-center">
+            <LuPackage size={28} className="mr-2 md:mr-3 text-gray-700" />
+            Inventory Management
+          </h1>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={
+                activeTab === "products"
+                  ? exportProductsToCSV
+                  : exportIngredientsToCSV
+              }
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center hover:bg-blue-700 transition-colors shadow-sm"
+            >
+              <LuDownload size={18} className="mr-2" />
+              Export CSV
+            </button>
+            <button
+              onClick={openNewForm}
+              className="bg-amber-800 text-white px-4 py-2 rounded-lg flex items-center hover:bg-amber-700 transition-colors shadow-sm"
+            >
+              <LuPlus size={18} className="mr-2" />
+              {activeTab === "ingredients"
+                ? "Add Ingredient"
+                : "Add POS Product"}
+            </button>
+          </div>
+        </div>
+
+        {/* Search and Filters */}
+        <div className="mb-6 flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <LuSearch
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              size={18}
+            />
+            <input
+              type="text"
+              placeholder={`Search ${
+                activeTab === "ingredients" ? "ingredients" : "products"
+              }...`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            />
+          </div>
+
+          {activeTab === "ingredients" && (
+            <button
+              onClick={() => setShowLowStockOnly(!showLowStockOnly)}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                showLowStockOnly
+                  ? "bg-red-100 text-red-800 border-2 border-red-300"
+                  : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              {showLowStockOnly ? "✓ Low Stock Only" : "Low Stock Only"}
+            </button>
+          )}
+        </div>
+
+        {/* Tabs */}
+        <div className="mb-6">
+          <div className="inline-flex rounded-lg bg-gray-100 p-1">
+            <button
+              onClick={() => {
+                setActiveTab("products");
+                setSearchQuery("");
+                setSortColumn("");
+              }}
+              className={`px-4 py-2 text-sm font-medium rounded-md flex items-center ${
+                activeTab === "products"
+                  ? "bg-white text-amber-900 shadow-sm"
+                  : "text-gray-600 hover:text-gray-800"
+              }`}
+            >
+              <LuCoffee className="mr-2" size={16} /> POS Products
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab("ingredients");
+                setSearchQuery("");
+                setSortColumn("");
+                setShowLowStockOnly(false);
+              }}
+              className={`ml-1 px-4 py-2 text-sm font-medium rounded-md flex items-center ${
+                activeTab === "ingredients"
+                  ? "bg-white text-amber-900 shadow-sm"
+                  : "text-gray-600 hover:text-gray-800"
+              }`}
+            >
+              <LuFlask className="mr-2" size={16} /> Raw Ingredients
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-gray-200 mb-6">
-        <button
-          onClick={() => setActiveTab("products")}
-          className={`px-4 py-2 text-sm font-medium ${
-            activeTab === "products"
-              ? "border-b-2 border-amber-800 text-amber-800"
-              : "text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          <LuCoffee className="inline mr-2" size={16} /> POS Products
-        </button>
-        <button
-          onClick={() => setActiveTab("ingredients")}
-          className={`px-4 py-2 text-sm font-medium ${
-            activeTab === "ingredients"
-              ? "border-b-2 border-amber-800 text-amber-800"
-              : "text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          <LuFlask className="inline mr-2" size={16} /> Raw Ingredients
-        </button>
-      </div>
-
       {/* Table Content based on Tab */}
-      {activeTab === "ingredients"
-        ? renderIngredientTable()
-        : renderProductTable()}
+      <div className="max-w-7xl mx-auto">
+        {activeTab === "ingredients"
+          ? renderIngredientTable()
+          : renderProductTable()}
+      </div>
     </div>
   );
 }
