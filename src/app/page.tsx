@@ -78,7 +78,8 @@ export default function DashboardPage() {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const API_URL = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
+      const API_URL =
+        process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
 
       // Fetch in parallel
       const [summaryRes, chartRes, ingredientsRes, carwashRes] =
@@ -167,17 +168,14 @@ export default function DashboardPage() {
 
       {/* Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mb-6 sm:mb-8">
-        <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-          <p className="text-xs sm:text-sm text-gray-500">Total Revenue</p>
-          <div className="mt-1 flex items-baseline gap-1 sm:gap-2">
-            <span
-              className="text-emerald-600 text-lg sm:text-xl lg:text-2xl"
-              aria-hidden
-            >
+        <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+          <p className="text-xs sm:text-sm text-gray-500 mb-1">Total Revenue</p>
+          <div className="flex items-baseline gap-1">
+            <span className="text-emerald-600 text-base sm:text-lg shrink-0">
               ₱
             </span>
             <span
-              className="text-2xl sm:text-3xl lg:text-4xl font-bold tabular-nums tracking-tight whitespace-nowrap"
+              className="text-xl sm:text-2xl md:text-3xl font-bold tabular-nums tracking-tight break-all leading-tight"
               title={`₱${formattedRevenue}`}
             >
               {formattedRevenue}
