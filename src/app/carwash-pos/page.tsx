@@ -484,9 +484,6 @@ function CarwashPOS() {
   const [customerPhone, setCustomerPhone] = useState<string>("");
 
   // Payment States
-  const [discountType, setDiscountType] = useState<
-    "Senior" | "PWD" | "Employee" | null
-  >(null);
   const [paymentMethod, setPaymentMethod] = useState<"Cash" | "Gcash" | null>(
     null
   );
@@ -534,7 +531,6 @@ function CarwashPOS() {
 
   const clearCart = () => {
     setCart([]);
-    setDiscountType(null);
     setPaymentMethod(null);
     setPlateNumber("");
     setCustomerName("");
@@ -546,9 +542,7 @@ function CarwashPOS() {
     (sum, item) => sum + item.price * item.quantity,
     0
   );
-  const DISCOUNT_RATE = 0.2;
-  const discount = discountType ? subtotal * DISCOUNT_RATE : 0;
-  const total = subtotal - discount;
+  const total = subtotal;
 
   // Upsert service ticket
   const upsertCarwashServiceTicket = useCallback(
@@ -654,10 +648,10 @@ function CarwashPOS() {
       orderId: currentOrderId || `ORD-${uuidv4().slice(0, 8)}`,
       items: cart,
       subtotal: subtotal,
-      discount: discount,
+      discount: 0,
       total: total,
       payment: paymentMethod!,
-      discount_type: discountType,
+      discount_type: null,
       cashTendered: null,
       changeDue: null,
       order_type: null,
@@ -684,10 +678,10 @@ function CarwashPOS() {
       orderId: currentOrderId || `ORD-${uuidv4().slice(0, 8)}`,
       items: cart,
       subtotal: subtotal,
-      discount: discount,
+      discount: 0,
       total: total,
       payment: "Cash",
-      discount_type: discountType,
+      discount_type: null,
       cashTendered: cashAmount,
       changeDue: cashAmount - total,
       order_type: null,
@@ -852,46 +846,6 @@ function CarwashPOS() {
                 maximumFractionDigits: 2,
               })}
             </span>
-          </div>
-          <div className="flex justify-between text-sm mb-4">
-            <span className="text-red-600">
-              Discount{discountType ? ` (${discountType})` : ""}
-            </span>
-            <span className="font-medium text-red-600">
-              - ₱
-              {discount.toLocaleString("en-PH", {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
-            </span>
-          </div>
-
-          {/* Discount Buttons */}
-          <div className="mb-4">
-            <label className="block text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">
-              Apply Discount
-            </label>
-            <div className="grid grid-cols-4 gap-2">
-              {(["Senior", "PWD", "Employee"] as const).map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setDiscountType(type)}
-                  className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${
-                    discountType === type
-                      ? "bg-amber-600 text-white shadow-md"
-                      : "bg-white border border-gray-200 text-gray-700 hover:border-amber-300 hover:bg-amber-50"
-                  }`}
-                >
-                  {type}
-                </button>
-              ))}
-              <button
-                onClick={() => setDiscountType(null)}
-                className="px-3 py-2 rounded-lg text-xs font-medium bg-white border border-gray-200 text-red-600 hover:bg-red-50 hover:border-red-300 transition-all"
-              >
-                Clear
-              </button>
-            </div>
           </div>
 
           <div className="bg-white rounded-lg p-4 mb-4 border-2 border-gray-900">
