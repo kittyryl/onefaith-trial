@@ -2,7 +2,6 @@
 
 import { usePathname } from "next/navigation";
 import AppShell from "./AppShell";
-import ShiftBanner from "./ShiftBanner";
 
 export default function LayoutContent({
   children,
@@ -17,11 +16,6 @@ export default function LayoutContent({
     return <>{children}</>;
   }
 
-  // Show AppShell with sidebar and ShiftBanner for all other pages
-  return (
-    <>
-      <ShiftBanner />
-      <AppShell>{children}</AppShell>
-    </>
-  );
+  // Show AppShell with sidebar for all other pages
+  return <AppShell>{children}</AppShell>;
 }
