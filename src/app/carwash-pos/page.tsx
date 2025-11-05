@@ -398,7 +398,8 @@ function CarwashPOS() {
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState<boolean>(false);
   const [completedOrder, setCompletedOrder] =
     useState<CarwashOrderDetails | null>(null);
-  const [isSubmittingPayment, setIsSubmittingPayment] = useState<boolean>(false);
+  const [isSubmittingPayment, setIsSubmittingPayment] =
+    useState<boolean>(false);
 
   // Fetch services from API
   useEffect(() => {
@@ -566,7 +567,7 @@ function CarwashPOS() {
     plateNumber: string;
   }) => {
     if (isSubmittingPayment) return; // Prevent double submission
-    
+
     // Update customer details
     setCustomerName(details.customerName);
     setCustomerPhone(details.customerPhone);
@@ -607,7 +608,7 @@ function CarwashPOS() {
 
   const handleCashPaymentSubmit = async (cashAmount: number) => {
     if (isSubmittingPayment) return; // Prevent double submission
-    
+
     setIsSubmittingPayment(true);
     try {
       if (!currentOrderId) {

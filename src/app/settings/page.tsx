@@ -7,7 +7,14 @@ import { toast } from "react-toastify";
 import { getAuthHeaders } from "@/lib/auth";
 import Spinner from "@/components/Spinner";
 import PageLoader from "@/components/PageLoader";
-import { LuPlus, LuPencil, LuTrash2, LuUserCog, LuClock, LuCar } from "react-icons/lu";
+import {
+  LuPlus,
+  LuPencil,
+  LuTrash2,
+  LuUserCog,
+  LuClock,
+  LuCar,
+} from "react-icons/lu";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
 
@@ -34,7 +41,9 @@ interface Shift {
 }
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<"accounts" | "shifts" | "carwash">("accounts");
+  const [activeTab, setActiveTab] = useState<"accounts" | "shifts" | "carwash">(
+    "accounts"
+  );
 
   return (
     <ProtectedRoute>
@@ -740,17 +749,25 @@ interface CarwashPrice {
 function CarwashCatalog() {
   const [services, setServices] = useState<CarwashService[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingService, setEditingService] = useState<CarwashService | null>(null);
-  const [editingPrice, setEditingPrice] = useState<{ serviceId: number; price: CarwashPrice | null } | null>(null);
+  const [editingService, setEditingService] = useState<CarwashService | null>(
+    null
+  );
+  const [editingPrice, setEditingPrice] = useState<{
+    serviceId: number;
+    price: CarwashPrice | null;
+  } | null>(null);
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [showPriceModal, setShowPriceModal] = useState(false);
 
   const fetchServices = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE}/api/carwash-catalog/admin/services`, {
-        headers: getAuthHeaders(),
-      });
+      const res = await fetch(
+        `${API_BASE}/api/carwash-catalog/admin/services`,
+        {
+          headers: getAuthHeaders(),
+        }
+      );
       if (!res.ok) throw new Error("Failed to fetch services");
       const data: CarwashService[] = await res.json();
       setServices(data);
@@ -777,13 +794,21 @@ function CarwashCatalog() {
   };
 
   const handleDeleteService = async (id: number, name: string) => {
-    if (!confirm(`Delete service "${name}"? This will also delete all associated prices.`)) return;
+    if (
+      !confirm(
+        `Delete service "${name}"? This will also delete all associated prices.`
+      )
+    )
+      return;
 
     try {
-      const res = await fetch(`${API_BASE}/api/carwash-catalog/admin/services/${id}`, {
-        method: "DELETE",
-        headers: getAuthHeaders(),
-      });
+      const res = await fetch(
+        `${API_BASE}/api/carwash-catalog/admin/services/${id}`,
+        {
+          method: "DELETE",
+          headers: getAuthHeaders(),
+        }
+      );
 
       if (!res.ok) throw new Error("Failed to delete service");
 
@@ -809,10 +834,13 @@ function CarwashCatalog() {
     if (!confirm(`Delete price for "${vehicleType}"?`)) return;
 
     try {
-      const res = await fetch(`${API_BASE}/api/carwash-catalog/admin/prices/${priceId}`, {
-        method: "DELETE",
-        headers: getAuthHeaders(),
-      });
+      const res = await fetch(
+        `${API_BASE}/api/carwash-catalog/admin/prices/${priceId}`,
+        {
+          method: "DELETE",
+          headers: getAuthHeaders(),
+        }
+      );
 
       if (!res.ok) throw new Error("Failed to delete price");
 
@@ -826,18 +854,23 @@ function CarwashCatalog() {
 
   const handleToggleServiceActive = async (service: CarwashService) => {
     try {
-      const res = await fetch(`${API_BASE}/api/carwash-catalog/admin/services/${service.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify({ is_active: !service.is_active }),
-      });
+      const res = await fetch(
+        `${API_BASE}/api/carwash-catalog/admin/services/${service.id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeaders(),
+          },
+          body: JSON.stringify({ is_active: !service.is_active }),
+        }
+      );
 
       if (!res.ok) throw new Error("Failed to update service");
 
-      toast.success(`Service ${!service.is_active ? "activated" : "deactivated"}`);
+      toast.success(
+        `Service ${!service.is_active ? "activated" : "deactivated"}`
+      );
       fetchServices();
     } catch (err) {
       console.error(err);
@@ -853,7 +886,9 @@ function CarwashCatalog() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-xl font-bold">Carwash Services Catalog</h2>
-          <p className="text-sm text-gray-600">Manage services and pricing for the POS</p>
+          <p className="text-sm text-gray-600">
+            Manage services and pricing for the POS
+          </p>
         </div>
         <button
           onClick={handleAddService}
@@ -886,7 +921,9 @@ function CarwashCatalog() {
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-gray-600 mt-1">{service.description}</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  {service.description}
+                </p>
               </div>
               <div className="flex gap-2">
                 <button
@@ -916,7 +953,9 @@ function CarwashCatalog() {
             {/* Prices */}
             <div className="border-t pt-4">
               <div className="flex justify-between items-center mb-3">
-                <h4 className="font-semibold text-sm text-gray-700">Vehicle Prices</h4>
+                <h4 className="font-semibold text-sm text-gray-700">
+                  Vehicle Prices
+                </h4>
                 <button
                   onClick={() => handleAddPrice(service.id)}
                   className="text-sm text-amber-700 hover:underline flex items-center gap-1"
@@ -952,7 +991,9 @@ function CarwashCatalog() {
                             <LuPencil size={14} />
                           </button>
                           <button
-                            onClick={() => handleDeletePrice(price.id, price.vehicle_type)}
+                            onClick={() =>
+                              handleDeletePrice(price.id, price.vehicle_type)
+                            }
                             className="p-1 rounded hover:bg-gray-100 text-red-600"
                             title="Delete price"
                           >
@@ -1125,7 +1166,13 @@ function ServiceModal({ service, onClose, onSave }: ServiceModalProps) {
               className="px-4 py-2 rounded-lg bg-amber-800 text-white hover:bg-amber-700 flex items-center"
               disabled={saving}
             >
-              {saving ? <Spinner size="sm" thickness={2} /> : service ? "Save" : "Create"}
+              {saving ? (
+                <Spinner size="sm" thickness={2} />
+              ) : service ? (
+                "Save"
+              ) : (
+                "Create"
+              )}
             </button>
           </div>
         </form>
@@ -1191,7 +1238,8 @@ function PriceModal({ serviceId, price, onClose, onSave }: PriceModalProps) {
       onClose();
     } catch (err) {
       console.error(err);
-      const errorMessage = err instanceof Error ? err.message : "Could not save price";
+      const errorMessage =
+        err instanceof Error ? err.message : "Could not save price";
       toast.error(errorMessage);
     } finally {
       setSaving(false);
@@ -1247,7 +1295,13 @@ function PriceModal({ serviceId, price, onClose, onSave }: PriceModalProps) {
               className="px-4 py-2 rounded-lg bg-amber-800 text-white hover:bg-amber-700 flex items-center"
               disabled={saving}
             >
-              {saving ? <Spinner size="sm" thickness={2} /> : price ? "Save" : "Add"}
+              {saving ? (
+                <Spinner size="sm" thickness={2} />
+              ) : price ? (
+                "Save"
+              ) : (
+                "Add"
+              )}
             </button>
           </div>
         </form>
