@@ -195,6 +195,7 @@ interface PaymentModalProps {
   onSubmit: (cashTendered: number) => void;
   cashTendered: string;
   setCashTendered: (value: string) => void;
+  isSubmitting: boolean;
 }
 
 function PaymentModal({
@@ -203,6 +204,7 @@ function PaymentModal({
   onSubmit,
   cashTendered,
   setCashTendered,
+  isSubmitting,
 }: PaymentModalProps) {
   const numpadKeys = [
     "1",
@@ -283,9 +285,10 @@ function PaymentModal({
           </div>
           <button
             type="submit"
-            className="w-full bg-green-500 text-white p-3 rounded-lg font-bold text-lg cursor-pointer"
+            disabled={isSubmitting}
+            className="w-full bg-green-500 text-white p-3 rounded-lg font-bold text-lg cursor-pointer disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            Confirm Payment
+            {isSubmitting ? "Processing..." : "Confirm Payment"}
           </button>
         </form>
       </div>
@@ -395,6 +398,7 @@ function CarwashPOS() {
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState<boolean>(false);
   const [completedOrder, setCompletedOrder] =
     useState<CarwashOrderDetails | null>(null);
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState<boolean>(false);
 
   // Fetch services from API
   useEffect(() => {
@@ -426,12 +430,15 @@ function CarwashPOS() {
     }
     const existingItem = cart.find(
       (item) =>
-        item.serviceId === service.id.toString() && item.vehicle === priceInfo.vehicle_type
+        item.serviceId === service.id.toString() &&
+        item.vehicle === priceInfo.vehicle_type
     );
 
     if (existingItem) {
       // Service already in cart - don't allow duplicates
-      toast.info(`${service.name} for ${priceInfo.vehicle_type} is already in cart`);
+      toast.info(
+        `${service.name} for ${priceInfo.vehicle_type} is already in cart`
+      );
     } else {
       const newItem: CarwashCartItem = {
         cartId: uuidv4(),
@@ -558,6 +565,8 @@ function CarwashPOS() {
     customerPhone: string;
     plateNumber: string;
   }) => {
+    if (isSubmittingPayment) return; // Prevent double submission
+    
     // Update customer details
     setCustomerName(details.customerName);
     setCustomerPhone(details.customerPhone);
@@ -579,12 +588,17 @@ function CarwashPOS() {
     };
 
     if (paymentMethod === "Gcash") {
-      const submissionResult = await submitOrderToAPI(baseOrder);
-      if (submissionResult) {
-        // Create carwash service ticket after successful payment
-        await upsertCarwashServiceTicket("queue");
-        setCompletedOrder(baseOrder);
-        setIsReceiptModalOpen(true);
+      setIsSubmittingPayment(true);
+      try {
+        const submissionResult = await submitOrderToAPI(baseOrder);
+        if (submissionResult) {
+          // Create carwash service ticket after successful payment
+          await upsertCarwashServiceTicket("queue");
+          setCompletedOrder(baseOrder);
+          setIsReceiptModalOpen(true);
+        }
+      } finally {
+        setIsSubmittingPayment(false);
       }
     } else if (paymentMethod === "Cash") {
       setIsPaymentModalOpen(true);
@@ -592,29 +606,36 @@ function CarwashPOS() {
   };
 
   const handleCashPaymentSubmit = async (cashAmount: number) => {
-    if (!currentOrderId) {
-      setCurrentOrderId(`ORD-${uuidv4().slice(0, 8)}`);
-    }
-    const orderDetails: CarwashOrderDetails = {
-      orderId: currentOrderId || `ORD-${uuidv4().slice(0, 8)}`,
-      items: cart,
-      subtotal: subtotal,
-      discount: 0,
-      total: total,
-      payment: "Cash",
-      discount_type: null,
-      cashTendered: cashAmount,
-      changeDue: cashAmount - total,
-      order_type: null,
-    };
-    const submissionResult = await submitOrderToAPI(orderDetails);
-    if (submissionResult) {
-      // Create carwash service ticket after successful cash payment
-      await upsertCarwashServiceTicket("queue");
-      setCompletedOrder(orderDetails);
-      setIsPaymentModalOpen(false);
-      setIsReceiptModalOpen(true);
-      setCashTendered("");
+    if (isSubmittingPayment) return; // Prevent double submission
+    
+    setIsSubmittingPayment(true);
+    try {
+      if (!currentOrderId) {
+        setCurrentOrderId(`ORD-${uuidv4().slice(0, 8)}`);
+      }
+      const orderDetails: CarwashOrderDetails = {
+        orderId: currentOrderId || `ORD-${uuidv4().slice(0, 8)}`,
+        items: cart,
+        subtotal: subtotal,
+        discount: 0,
+        total: total,
+        payment: "Cash",
+        discount_type: null,
+        cashTendered: cashAmount,
+        changeDue: cashAmount - total,
+        order_type: null,
+      };
+      const submissionResult = await submitOrderToAPI(orderDetails);
+      if (submissionResult) {
+        // Create carwash service ticket after successful cash payment
+        await upsertCarwashServiceTicket("queue");
+        setCompletedOrder(orderDetails);
+        setIsPaymentModalOpen(false);
+        setIsReceiptModalOpen(true);
+        setCashTendered("");
+      }
+    } finally {
+      setIsSubmittingPayment(false);
     }
   };
 
@@ -655,6 +676,7 @@ function CarwashPOS() {
           onSubmit={handleCashPaymentSubmit}
           cashTendered={cashTendered}
           setCashTendered={setCashTendered}
+          isSubmitting={isSubmittingPayment}
         />
       )}
       {isReceiptModalOpen && completedOrder && (
