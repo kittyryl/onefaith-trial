@@ -35,10 +35,18 @@ export default function Spinner({
   className = "",
 }: SpinnerProps) {
   const thicknessClass =
-    thickness === 2 ? "border-2" : thickness === 3 ? "border-[3px]" : "border-4";
+    thickness === 2
+      ? "border-2"
+      : thickness === 3
+      ? "border-[3px]"
+      : "border-4";
 
   return (
-    <div className={`flex items-center ${label ? "space-x-3" : ""} ${className}`.trim()}>
+    <div
+      className={`flex items-center ${
+        label ? "space-x-3" : ""
+      } ${className}`.trim()}
+    >
       <span
         className={`inline-block ${sizeClass[size]} animate-spin rounded-full ${thicknessClass} border-gray-300 ${colorClass[color]}`}
       />
