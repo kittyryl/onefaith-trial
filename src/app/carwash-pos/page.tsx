@@ -1,23 +1,24 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { LuCar, LuX, LuTrash2, LuPrinter } from "react-icons/lu";
 import { toast } from "react-toastify";
 import { v4 as uuidv4 } from "uuid";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { getAuthHeaders } from "@/lib/auth";
+import PageLoader from "@/components/PageLoader";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
 
 // Types
 
 interface ServicePrice {
-  vehicle: string;
+  vehicle_type: string;
   price: number;
 }
 
 interface CarwashService {
-  id: string;
+  id: number;
   name: string;
   category: string;
   description: string;
@@ -45,108 +46,6 @@ interface CarwashOrderDetails {
   discount_type: string | null;
   order_type: null;
 }
-
-// Services catalog
-const allServices: CarwashService[] = [
-  {
-    id: "detailed_wash",
-    name: "Detailed Wash",
-    category: "Basic",
-    description:
-      "Exterior wash/dry, tire/wheel cleaning, interior cleaning, vacuum, armor all.",
-    prices: [
-      { vehicle: "Bike", price: 100 },
-      { vehicle: "Big Bike", price: 150 },
-      { vehicle: "Sedan", price: 200 },
-      { vehicle: "CSUV", price: 250 },
-      { vehicle: "SUV", price: 300 },
-      { vehicle: "Van Pickup", price: 350 },
-      { vehicle: "FB Van Grandia", price: 400 },
-    ],
-  },
-  {
-    id: "detailed_wash_wax",
-    name: "Detailed Wash & Wax",
-    category: "Most Popular",
-    description: "All Detailed Wash features + professional hand waxing.",
-    prices: [
-      { vehicle: "Bike", price: 250 },
-      { vehicle: "Big Bike", price: 300 },
-      { vehicle: "Sedan", price: 500 },
-      { vehicle: "CSUV", price: 600 },
-      { vehicle: "SUV", price: 700 },
-      { vehicle: "Van Pickup", price: 900 },
-      { vehicle: "Truck", price: 950 },
-    ],
-  },
-  {
-    id: "ceramic_coating",
-    name: "Ceramic Coating",
-    category: "Advanced",
-    description:
-      "Ultimate luxury treatment, paint sealant, glass cleaning, deluxe detailing.",
-    prices: [
-      { vehicle: "Bikes", price: 3000 },
-      { vehicle: "Small", price: 12000 },
-      { vehicle: "Medium", price: 15000 },
-      { vehicle: "Large", price: 18000 },
-      { vehicle: "XLarge", price: 21000 },
-      { vehicle: "XXLarge", price: 24000 },
-    ],
-  },
-  {
-    id: "bac_2_zero",
-    name: "Bac-2-Zero",
-    category: "Others",
-    description: "Interior sanitation service.",
-    prices: [
-      { vehicle: "S", price: 500 },
-      { vehicle: "M", price: 550 },
-      { vehicle: "L", price: 600 },
-      { vehicle: "XL", price: 650 },
-      { vehicle: "XXL", price: 700 },
-    ],
-  },
-  {
-    id: "buffing_wax",
-    name: "Buffing Wax",
-    category: "Others",
-    description: "Machine buffing for paint correction.",
-    prices: [
-      { vehicle: "S", price: 600 },
-      { vehicle: "M", price: 700 },
-      { vehicle: "L", price: 800 },
-      { vehicle: "XL", price: 900 },
-      { vehicle: "XXL", price: 1000 },
-    ],
-  },
-  {
-    id: "glass_cleaning",
-    name: "Glass Cleaning",
-    category: "Others",
-    description: "Full exterior/interior glass detailing.",
-    prices: [
-      { vehicle: "S", price: 1250 },
-      { vehicle: "M", price: 1400 },
-      { vehicle: "L", price: 1700 },
-      { vehicle: "XL", price: 1800 },
-      { vehicle: "XXL", price: 1950 },
-    ],
-  },
-  {
-    id: "hand_wax",
-    name: "Hand Wax",
-    category: "Others",
-    description: "Protective hand waxing service.",
-    prices: [
-      { vehicle: "S", price: 400 },
-      { vehicle: "M", price: 500 },
-      { vehicle: "L", price: 600 },
-      { vehicle: "XL", price: 700 },
-      { vehicle: "XXL", price: 800 },
-    ],
-  },
-];
 
 // Modals
 
@@ -178,12 +77,12 @@ function VehicleSelectionModal({
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-[60vh] overflow-y-auto">
           {service.prices.map((priceOption) => (
             <button
-              key={priceOption.vehicle}
+              key={priceOption.vehicle_type}
               onClick={() => onSelect(priceOption)}
               className="p-4 rounded-lg border text-left cursor-pointer hover:bg-gray-100 transition-colors"
             >
               <span className="block font-semibold text-lg">
-                {priceOption.vehicle}
+                {priceOption.vehicle_type}
               </span>
               <span className="block text-gray-800 text-base">
                 P{priceOption.price.toFixed(2)}
@@ -473,6 +372,8 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
 
 // POS
 function CarwashPOS() {
+  const [allServices, setAllServices] = useState<CarwashService[]>([]);
+  const [loadingServices, setLoadingServices] = useState(true);
   const [cart, setCart] = useState<CarwashCartItem[]>([]);
   const [selectedService, setSelectedService] = useState<CarwashService | null>(
     null
@@ -495,6 +396,26 @@ function CarwashPOS() {
   const [completedOrder, setCompletedOrder] =
     useState<CarwashOrderDetails | null>(null);
 
+  // Fetch services from API
+  useEffect(() => {
+    const fetchServices = async () => {
+      try {
+        setLoadingServices(true);
+        const res = await fetch(`${API_BASE}/api/carwash-catalog/services`);
+        if (!res.ok) throw new Error("Failed to fetch services");
+        const data: CarwashService[] = await res.json();
+        setAllServices(data);
+      } catch (error) {
+        console.error("Error fetching services:", error);
+        toast.error("Could not load services. Please refresh the page.");
+      } finally {
+        setLoadingServices(false);
+      }
+    };
+
+    fetchServices();
+  }, []);
+
   // --- Cart Handlers ---
   const handleSelectServiceWithVehicle = (
     service: CarwashService,
@@ -505,18 +426,18 @@ function CarwashPOS() {
     }
     const existingItem = cart.find(
       (item) =>
-        item.serviceId === service.id && item.vehicle === priceInfo.vehicle
+        item.serviceId === service.id.toString() && item.vehicle === priceInfo.vehicle_type
     );
 
     if (existingItem) {
       // Service already in cart - don't allow duplicates
-      toast.info(`${service.name} for ${priceInfo.vehicle} is already in cart`);
+      toast.info(`${service.name} for ${priceInfo.vehicle_type} is already in cart`);
     } else {
       const newItem: CarwashCartItem = {
         cartId: uuidv4(),
-        serviceId: service.id,
+        serviceId: service.id.toString(),
         serviceName: service.name,
-        vehicle: priceInfo.vehicle,
+        vehicle: priceInfo.vehicle_type,
         price: priceInfo.price,
         quantity: 1,
       };
@@ -748,37 +669,48 @@ function CarwashPOS() {
         <p className="text-gray-600 mb-6">
           Select services and vehicle types to begin your order
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {allServices.map((service) => (
-            <div
-              key={service.id}
-              onClick={() => setSelectedService(service)}
-              className="group bg-white rounded-xl shadow-sm overflow-hidden cursor-pointer hover:shadow-xl transition-all duration-300 border border-gray-100 p-6 h-full"
-            >
-              <div>
-                <span className="text-xs text-blue-600 font-semibold uppercase">
-                  {service.category}
-                </span>
-                <h3 className="text-lg font-bold mt-1 mb-2 group-hover:text-blue-600 transition-colors">
-                  {service.name}
-                </h3>
-                <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                  {service.description}
+        {loadingServices ? (
+          <div className="flex justify-center items-center min-h-[400px]">
+            <PageLoader />
+          </div>
+        ) : allServices.length === 0 ? (
+          <div className="flex flex-col items-center justify-center min-h-[400px] text-gray-400">
+            <LuCar size={60} />
+            <p className="mt-4">No services available</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {allServices.map((service) => (
+              <div
+                key={service.id}
+                onClick={() => setSelectedService(service)}
+                className="group bg-white rounded-xl shadow-sm overflow-hidden cursor-pointer hover:shadow-xl transition-all duration-300 border border-gray-100 p-6 h-full"
+              >
+                <div>
+                  <span className="text-xs text-blue-600 font-semibold uppercase">
+                    {service.category}
+                  </span>
+                  <h3 className="text-lg font-bold mt-1 mb-2 group-hover:text-blue-600 transition-colors">
+                    {service.name}
+                  </h3>
+                  <p className="text-gray-600 text-sm mb-4 line-clamp-2">
+                    {service.description}
+                  </p>
+                </div>
+                <p className="text-lg font-bold text-gray-900 mt-2">
+                  ₱
+                  {Math.min(
+                    ...service.prices.map((p) => p.price)
+                  ).toLocaleString()}{" "}
+                  - ₱
+                  {Math.max(
+                    ...service.prices.map((p) => p.price)
+                  ).toLocaleString()}
                 </p>
               </div>
-              <p className="text-lg font-bold text-gray-900 mt-2">
-                ₱
-                {Math.min(
-                  ...service.prices.map((p) => p.price)
-                ).toLocaleString()}{" "}
-                - ₱
-                {Math.max(
-                  ...service.prices.map((p) => p.price)
-                ).toLocaleString()}
-              </p>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Order */}
