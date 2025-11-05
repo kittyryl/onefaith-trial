@@ -11,6 +11,8 @@ import {
   LuClock,
 } from "react-icons/lu";
 import { toast } from "react-toastify";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import { getAuthHeaders } from "@/lib/auth";
 
 // Types
 interface SalesOrderItem {
@@ -36,7 +38,7 @@ interface SalesOrder {
 }
 
 // Sales Page
-export default function SalesPage() {
+function Sales() {
   const [salesData, setSalesData] = useState<SalesOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
@@ -131,7 +133,10 @@ export default function SalesPage() {
       const queryString = params.toString();
 
       const response = await fetch(
-        `${API_BASE}/api/reports/summary?${queryString}`
+        `${API_BASE}/api/reports/summary?${queryString}`,
+        {
+          headers: getAuthHeaders(),
+        }
       );
 
       if (!response.ok) {
@@ -562,5 +567,13 @@ export default function SalesPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SalesPage() {
+  return (
+    <ProtectedRoute>
+      <Sales />
+    </ProtectedRoute>
   );
 }

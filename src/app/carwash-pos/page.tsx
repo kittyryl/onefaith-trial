@@ -1,16 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import {
-  LuCar,
-  LuX,
-  LuPlus,
-  LuMinus,
-  LuTrash2,
-  LuPrinter,
-} from "react-icons/lu";
+import { useCallback, useState } from "react";
+import { LuCar, LuX, LuTrash2, LuPrinter } from "react-icons/lu";
 import { toast } from "react-toastify";
 import { v4 as uuidv4 } from "uuid";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import { getAuthHeaders } from "@/lib/auth";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
 
@@ -247,34 +242,37 @@ function CustomerDetailsModal({
           <div className="space-y-4 mb-6">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Customer Name (Optional)
+                Customer Name <span className="text-red-500">*</span>
               </label>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Juan Dela Cruz"
+                required
                 className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Phone Number (Optional)
+                Phone Number <span className="text-red-500">*</span>
               </label>
               <input
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="e.g. 09XXXXXXXXX"
+                required
                 className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Plate Number (Optional)
+                Plate Number <span className="text-red-500">*</span>
               </label>
               <input
                 value={plate}
                 onChange={(e) => setPlate(e.target.value.toUpperCase())}
                 placeholder="e.g. ABC1234"
+                required
                 className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 uppercase"
               />
             </div>
@@ -474,7 +472,7 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
 }
 
 // POS
-export default function CarwashPosPage() {
+function CarwashPOS() {
   const [cart, setCart] = useState<CarwashCartItem[]>([]);
   const [selectedService, setSelectedService] = useState<CarwashService | null>(
     null
@@ -501,7 +499,7 @@ export default function CarwashPosPage() {
     useState<CarwashOrderDetails | null>(null);
 
   // --- Cart Handlers ---
-  const handleAddToCart = (
+  const handleSelectServiceWithVehicle = (
     service: CarwashService,
     priceInfo: ServicePrice
   ) => {
@@ -514,7 +512,8 @@ export default function CarwashPosPage() {
     );
 
     if (existingItem) {
-      handleIncrementQuantity(existingItem.cartId);
+      // Service already in cart - don't allow duplicates
+      toast.info(`${service.name} for ${priceInfo.vehicle} is already in cart`);
     } else {
       const newItem: CarwashCartItem = {
         cartId: uuidv4(),
@@ -527,26 +526,6 @@ export default function CarwashPosPage() {
       setCart((prevCart) => [...prevCart, newItem]);
     }
     setSelectedService(null);
-  };
-
-  const handleIncrementQuantity = (cartId: string) => {
-    setCart((prevCart) =>
-      prevCart.map((item) =>
-        item.cartId === cartId ? { ...item, quantity: item.quantity + 1 } : item
-      )
-    );
-  };
-
-  const handleDecrementQuantity = (cartId: string) => {
-    setCart((prevCart) =>
-      prevCart
-        .map((item) =>
-          item.cartId === cartId
-            ? { ...item, quantity: Math.max(0, item.quantity - 1) }
-            : item
-        )
-        .filter((item) => item.quantity > 0)
-    );
   };
 
   const handleRemoveItem = (cartId: string) => {
@@ -588,7 +567,10 @@ export default function CarwashPosPage() {
       try {
         await fetch(`${API_BASE}/api/carwash/services`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeaders(),
+          },
           body: JSON.stringify({
             order_id: currentOrderId,
             status,
@@ -609,22 +591,7 @@ export default function CarwashPosPage() {
     [currentOrderId, cart, total, plateNumber, customerName, customerPhone]
   );
 
-  // Keep the queue ticket up-to-date when cart or details change (debounced)
-  useEffect(() => {
-    if (!currentOrderId || cart.length === 0) return;
-    const t = setTimeout(() => {
-      upsertCarwashServiceTicket("queue");
-    }, 300);
-    return () => clearTimeout(t);
-  }, [
-    cart,
-    currentOrderId,
-    total,
-    plateNumber,
-    customerName,
-    customerPhone,
-    upsertCarwashServiceTicket,
-  ]);
+  // Removed auto-update of queue ticket - only create after payment
 
   // --- API Submission ---
   const submitOrderToAPI = async (orderDetails: CarwashOrderDetails) => {
@@ -636,7 +603,10 @@ export default function CarwashPosPage() {
     try {
       const response = await fetch(`${API_BASE}/api/orders`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
         body: JSON.stringify(payload),
       });
 
@@ -696,6 +666,8 @@ export default function CarwashPosPage() {
     if (paymentMethod === "Gcash") {
       const submissionResult = await submitOrderToAPI(baseOrder);
       if (submissionResult) {
+        // Create carwash service ticket after successful payment
+        await upsertCarwashServiceTicket("queue");
         setCompletedOrder(baseOrder);
         setIsReceiptModalOpen(true);
       }
@@ -722,7 +694,8 @@ export default function CarwashPosPage() {
     };
     const submissionResult = await submitOrderToAPI(orderDetails);
     if (submissionResult) {
-      // Mark the queue ticket as completed via orders API side-effect; no need to upsert here
+      // Create carwash service ticket after successful cash payment
+      await upsertCarwashServiceTicket("queue");
       setCompletedOrder(orderDetails);
       setIsPaymentModalOpen(false);
       setIsReceiptModalOpen(true);
@@ -746,7 +719,9 @@ export default function CarwashPosPage() {
         <VehicleSelectionModal
           service={selectedService}
           onClose={() => setSelectedService(null)}
-          onSelect={(priceInfo) => handleAddToCart(selectedService, priceInfo)}
+          onSelect={(priceInfo) =>
+            handleSelectServiceWithVehicle(selectedService, priceInfo)
+          }
         />
       )}
       {isCustomerDetailsModalOpen && (
@@ -844,25 +819,8 @@ export default function CarwashPosPage() {
                     </h4>
                     <p className="text-sm text-gray-500">{item.vehicle}</p>
                     <p className="text-base font-semibold mt-1">
-                      ₱{(item.price * item.quantity).toLocaleString()}
+                      ₱{item.price.toLocaleString()}
                     </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleDecrementQuantity(item.cartId)}
-                      className="p-1.5 rounded-md bg-white border hover:bg-gray-100 cursor-pointer"
-                    >
-                      <LuMinus size={16} className="text-gray-700" />
-                    </button>
-                    <span className="font-bold w-8 text-center">
-                      {item.quantity}
-                    </span>
-                    <button
-                      onClick={() => handleIncrementQuantity(item.cartId)}
-                      className="p-1.5 rounded-md bg-white border hover:bg-gray-100 cursor-pointer"
-                    >
-                      <LuPlus size={16} className="text-gray-700" />
-                    </button>
                   </div>
                   <button
                     onClick={() => handleRemoveItem(item.cartId)}
@@ -992,5 +950,13 @@ export default function CarwashPosPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CarwashPosPage() {
+  return (
+    <ProtectedRoute>
+      <CarwashPOS />
+    </ProtectedRoute>
   );
 }

@@ -15,6 +15,9 @@ import {
   LuDownload,
 } from "react-icons/lu";
 import { toast } from "react-toastify";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import { getAuthHeaders } from "@/lib/auth";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Types
 
@@ -541,7 +544,8 @@ function StockMovementModal({
 }
 
 // --- MAIN PAGE COMPONENT ---
-export default function InventoryPage() {
+function Inventory() {
+  const { isManager } = useAuth();
   const [activeTab, setActiveTab] = useState<"ingredients" | "products">(
     "products"
   );
@@ -666,8 +670,12 @@ export default function InventoryPage() {
     setLoading(true);
     try {
       const [ingResponse, prodResponse] = await Promise.all([
-        fetch(`${API_BASE}/api/ingredients`),
-        fetch(`${API_BASE}/api/products`),
+        fetch(`${API_BASE}/api/ingredients`, {
+          headers: getAuthHeaders(),
+        }),
+        fetch(`${API_BASE}/api/products`, {
+          headers: getAuthHeaders(),
+        }),
       ]);
 
       const ingData: Ingredient[] = ingResponse.ok
@@ -706,7 +714,10 @@ export default function InventoryPage() {
     try {
       const response = await fetch(`${API_BASE}${endpoint}`, {
         method: method,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
         body: JSON.stringify(data),
       });
 
@@ -739,7 +750,10 @@ export default function InventoryPage() {
       const payload = { ...data, ingredient_id: selectedIngredient.id };
       const response = await fetch(`${API_BASE}/api/ingredients/movement`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
         body: JSON.stringify(payload),
       });
 
@@ -765,6 +779,7 @@ export default function InventoryPage() {
     try {
       const response = await fetch(`${API_BASE}${endpoint}`, {
         method: "DELETE",
+        headers: getAuthHeaders(),
       });
 
       if (!response.ok) {
@@ -1030,12 +1045,14 @@ export default function InventoryPage() {
                         >
                           <LuPencilLine size={18} />
                         </button>
-                        <button
-                          onClick={() => openDeleteConfirmation(ingredient)}
-                          className="text-red-600 hover:text-red-900 cursor-pointer"
-                        >
-                          <LuTrash2 size={18} />
-                        </button>
+                        {isManager() && (
+                          <button
+                            onClick={() => openDeleteConfirmation(ingredient)}
+                            className="text-red-600 hover:text-red-900 cursor-pointer"
+                          >
+                            <LuTrash2 size={18} />
+                          </button>
+                        )}
                       </div>
                       <button
                         onClick={() => openMovementModal(ingredient)}
@@ -1156,12 +1173,14 @@ export default function InventoryPage() {
                   >
                     <LuPencilLine size={18} />
                   </button>
-                  <button
-                    onClick={() => openDeleteConfirmation(product)}
-                    className="text-red-600 hover:text-red-900 cursor-pointer"
-                  >
-                    <LuTrash2 size={18} />
-                  </button>
+                  {isManager() && (
+                    <button
+                      onClick={() => openDeleteConfirmation(product)}
+                      className="text-red-600 hover:text-red-900 cursor-pointer"
+                    >
+                      <LuTrash2 size={18} />
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -1375,5 +1394,13 @@ export default function InventoryPage() {
           : renderProductTable()}
       </div>
     </div>
+  );
+}
+
+export default function InventoryPage() {
+  return (
+    <ProtectedRoute>
+      <Inventory />
+    </ProtectedRoute>
   );
 }

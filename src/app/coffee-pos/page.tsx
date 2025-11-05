@@ -13,6 +13,8 @@ import {
 } from "react-icons/lu";
 import { toast } from "react-toastify";
 import { v4 as uuidv4 } from "uuid";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import { getAuthHeaders } from "@/lib/auth";
 
 // API base
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
@@ -288,7 +290,7 @@ function PaymentModal({
 }
 
 // POS
-export default function PosPage() {
+function CoffeePOS() {
   // State
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [allCategories, setAllCategories] = useState<string[]>([]);
@@ -323,7 +325,9 @@ export default function PosPage() {
     const fetchProducts = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${API_BASE}/api/products`);
+        const response = await fetch(`${API_BASE}/api/products`, {
+          headers: getAuthHeaders(),
+        });
         if (!response.ok) {
           throw new Error("Failed to fetch products");
         }
@@ -448,7 +452,10 @@ export default function PosPage() {
     try {
       const response = await fetch(`${API_BASE}/api/orders`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
         body: JSON.stringify(payload),
       });
       if (!response.ok) throw new Error("Server responded with an error.");
@@ -838,5 +845,13 @@ export default function PosPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function PosPage() {
+  return (
+    <ProtectedRoute>
+      <CoffeePOS />
+    </ProtectedRoute>
   );
 }

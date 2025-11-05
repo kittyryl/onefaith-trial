@@ -14,6 +14,8 @@ import {
   LuPrinter,
 } from "react-icons/lu";
 import { toast } from "react-toastify";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import { getAuthHeaders } from "@/lib/auth";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
 
@@ -45,7 +47,7 @@ interface CarwashServiceOrder {
 type StatusTab = "all" | "queue" | "in_progress" | "completed" | "cancelled";
 
 // --- MAIN COMPONENT ---
-export default function CarwashServicesPage() {
+function CarwashServices() {
   const [orders, setOrders] = useState<CarwashServiceOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<StatusTab>("all");
@@ -70,7 +72,9 @@ export default function CarwashServicesPage() {
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE}/api/carwash/services`);
+      const response = await fetch(`${API_BASE}/api/carwash/services`, {
+        headers: getAuthHeaders(),
+      });
 
       if (!response.ok) {
         throw new Error("Failed to fetch carwash orders");
@@ -116,6 +120,7 @@ export default function CarwashServicesPage() {
         `${API_BASE}/api/carwash/services/${orderId}/start`,
         {
           method: "PUT",
+          headers: getAuthHeaders(),
         }
       );
 
@@ -135,6 +140,7 @@ export default function CarwashServicesPage() {
         `${API_BASE}/api/carwash/services/${orderId}/complete`,
         {
           method: "PUT",
+          headers: getAuthHeaders(),
         }
       );
 
@@ -289,7 +295,10 @@ export default function CarwashServicesPage() {
         `${API_BASE}/api/carwash/services/${cancelOrderId}/cancel`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeaders(),
+          },
           body: JSON.stringify({ reason: finalReason }),
         }
       );
@@ -308,7 +317,10 @@ export default function CarwashServicesPage() {
     try {
       const response = await fetch(
         `${API_BASE}/api/carwash/services/${orderId}/reopen`,
-        { method: "PUT" }
+        {
+          method: "PUT",
+          headers: getAuthHeaders(),
+        }
       );
       if (!response.ok) throw new Error("Failed to reopen service");
       toast.success("Service reopened to queue!");
@@ -549,14 +561,8 @@ export default function CarwashServicesPage() {
                           </span>
                           <span className="text-gray-500">
                             {" "}
-                            ({item.vehicle})
+                            ({item.vehicle}) x{item.quantity}
                           </span>
-                          {item.quantity > 1 && (
-                            <span className="text-gray-500">
-                              {" "}
-                              x{item.quantity}
-                            </span>
-                          )}
                         </div>
                       ))}
                     </div>
@@ -862,5 +868,13 @@ export default function CarwashServicesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function CarwashServicesPage() {
+  return (
+    <ProtectedRoute>
+      <CarwashServices />
+    </ProtectedRoute>
   );
 }

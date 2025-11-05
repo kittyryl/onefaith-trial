@@ -21,6 +21,8 @@ import {
   Legend,
 } from "recharts";
 import { format, parseISO } from "date-fns";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import { getAuthHeaders } from "@/lib/auth";
 
 // Types
 interface SalesSummary {
@@ -65,7 +67,7 @@ interface CarwashService {
 }
 
 // Dashboard
-export default function DashboardPage() {
+function Dashboard() {
   const [summaryData, setSummaryData] = useState<SalesSummary[]>([]);
   const [chartData, setChartData] = useState<SalesByBusinessByDay[]>([]);
   const [lowStockItems, setLowStockItems] = useState<Ingredient[]>([]);
@@ -81,13 +83,21 @@ export default function DashboardPage() {
       const API_URL =
         process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
 
-      // Fetch in parallel
+      // Fetch in parallel with auth headers
       const [summaryRes, chartRes, ingredientsRes, carwashRes] =
         await Promise.all([
-          fetch(`${API_URL}/api/reports/summary`),
-          fetch(`${API_URL}/api/reports/sales-by-business-by-day`),
-          fetch(`${API_URL}/api/ingredients`),
-          fetch(`${API_URL}/api/carwash/services`),
+          fetch(`${API_URL}/api/reports/summary`, {
+            headers: getAuthHeaders(),
+          }),
+          fetch(`${API_URL}/api/reports/sales-by-business-by-day`, {
+            headers: getAuthHeaders(),
+          }),
+          fetch(`${API_URL}/api/ingredients`, {
+            headers: getAuthHeaders(),
+          }),
+          fetch(`${API_URL}/api/carwash/services`, {
+            headers: getAuthHeaders(),
+          }),
         ]);
 
       if (!summaryRes.ok) throw new Error("Failed to fetch sales summary.");
@@ -400,5 +410,13 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <ProtectedRoute>
+      <Dashboard />
+    </ProtectedRoute>
   );
 }
