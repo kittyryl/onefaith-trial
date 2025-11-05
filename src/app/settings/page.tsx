@@ -210,12 +210,15 @@ function StaffManagement() {
           method: "DELETE",
           headers: getAuthHeaders(),
         });
-        if (!res.ok) throw new Error("Failed to delete user");
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({ message: "Failed to delete user" }));
+          throw new Error(data.message || "Failed to delete user");
+        }
         toast.success(`Deleted ${u.username}`);
         setUsersState(users.filter((x) => x.id !== u.id));
       } catch (err) {
         console.error(err);
-        toast.error("Delete failed");
+        toast.error(err instanceof Error ? err.message : "Delete failed");
       } finally {
       }
     })();
@@ -266,7 +269,7 @@ function UserModal({
       }
 
       const payload: Record<string, unknown> = isEdit
-        ? { fullName, role, isActive: editing!.is_active }
+        ? { fullName, role, isActive: editing!.is_active, username: username.trim() }
         : { username, fullName, role, password };
       if (password) payload.password = password;
 
@@ -306,19 +309,17 @@ function UserModal({
           </button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {!isEdit && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Username
-              </label>
-              <input
-                className="w-full border border-gray-300 rounded-lg p-2"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required={!isEdit}
-              />
-            </div>
-          )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Username
+            </label>
+            <input
+              className="w-full border border-gray-300 rounded-lg p-2"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+            />
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Full Name
