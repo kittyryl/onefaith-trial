@@ -14,6 +14,7 @@ import {
 import { toast } from "react-toastify";
 import { v4 as uuidv4 } from "uuid";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import Spinner from "@/components/Spinner";
 import { getAuthHeaders } from "@/lib/auth";
 
 // API base
@@ -599,7 +600,7 @@ function CoffeePOS() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {loading ? (
             <div className="col-span-full h-64 flex items-center justify-center">
-              <div className="animate-spin text-amber-800 text-5xl">⏳</div>
+              <Spinner size="lg" color="amber" label="Loading products..." />
             </div>
           ) : (
             visibleProducts.map((product) => (

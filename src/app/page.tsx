@@ -22,6 +22,7 @@ import {
 } from "recharts";
 import { format, parseISO } from "date-fns";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import PageLoader from "@/components/PageLoader";
 import { getAuthHeaders } from "@/lib/auth";
 
 // Types
@@ -162,11 +163,7 @@ function Dashboard() {
     maximumFractionDigits: 2,
   });
 
-  if (loading) {
-    return (
-      <div className="p-8 text-center text-gray-500">Loading Dashboard...</div>
-    );
-  }
+  if (loading) return <PageLoader message="Loading Dashboard..." color="amber" />;
 
   return (
     <div className="p-4 sm:p-6 md:p-8 min-h-screen bg-linear-to-br from-gray-50 to-gray-100">

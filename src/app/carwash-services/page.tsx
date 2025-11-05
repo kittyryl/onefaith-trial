@@ -15,6 +15,7 @@ import {
 } from "react-icons/lu";
 import { toast } from "react-toastify";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import PageLoader from "@/components/PageLoader";
 import { getAuthHeaders } from "@/lib/auth";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
@@ -338,16 +339,7 @@ function CarwashServices() {
     return `${minutes} min`;
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-cyan-50 p-4 sm:p-6 lg:p-8 flex items-center justify-center">
-        <div className="flex items-center space-x-3 text-gray-600">
-          <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
-          <span className="text-sm">Loading services...</span>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <PageLoader message="Loading services..." color="blue" />;
 
   return (
     <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-cyan-50 p-4 sm:p-6 lg:p-8">

@@ -16,6 +16,8 @@ import {
 } from "react-icons/lu";
 import { toast } from "react-toastify";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import Spinner from "@/components/Spinner";
+import PageLoader from "@/components/PageLoader";
 import { getAuthHeaders } from "@/lib/auth";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -409,7 +411,7 @@ function ItemFormModal({
               className="px-4 py-2 bg-amber-800 text-white rounded-lg hover:bg-amber-700 flex items-center justify-center min-w-[120px] disabled:bg-gray-400"
             >
               {uploading ? (
-                <span className="animate-spin">⏳</span>
+                <Spinner size="sm" thickness={2} />
               ) : isEdit ? (
                 "Save Changes"
               ) : (
@@ -931,15 +933,7 @@ function Inventory() {
     return filtered;
   };
 
-  if (loading)
-    return (
-      <div className="min-h-screen bg-linear-to-br from-amber-50 via-white to-rose-50 p-8 flex items-center justify-center">
-        <div className="flex items-center space-x-3 text-gray-600">
-          <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-amber-600" />
-          <span className="text-sm">Loading Inventory…</span>
-        </div>
-      </div>
-    );
+  if (loading) return <PageLoader message="Loading Inventory…" color="amber" />;
 
   // --- RENDER FUNCTIONS ---
   // (These are defined inside the main component to access its state and handlers)

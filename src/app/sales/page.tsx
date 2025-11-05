@@ -12,6 +12,7 @@ import {
 } from "react-icons/lu";
 import { toast } from "react-toastify";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import Spinner from "@/components/Spinner";
 import { getAuthHeaders } from "@/lib/auth";
 
 // Types
@@ -412,8 +413,7 @@ function Sales() {
         <div className="bg-white p-3 sm:p-6 rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
           {loading ? (
             <div className="flex items-center justify-center py-10">
-              <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-amber-600 mr-3" />
-              <span className="text-gray-500">Fetching sales data...</span>
+              <Spinner size="md" thickness={2} label="Fetching sales data..." />
             </div>
           ) : dataToDisplay.length === 0 ? (
             <p className="text-center py-10 text-gray-500">
