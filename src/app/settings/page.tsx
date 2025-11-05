@@ -104,6 +104,11 @@ function ShiftHistory() {
       const res = await fetch(`${API_BASE}/api/shifts/current`, {
         headers: getAuthHeaders(),
       });
+      if (res.status === 404) {
+        // No active shift
+        setCurrentShift(null);
+        return;
+      }
       if (!res.ok) {
         setCurrentShift(null);
         return;
@@ -218,7 +223,11 @@ function ShiftHistory() {
                 disabled={startingShift}
                 className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
               >
-                {startingShift ? <Spinner size="sm" color="gray" /> : "Start Shift"}
+                {startingShift ? (
+                  <Spinner size="sm" color="gray" />
+                ) : (
+                  "Start Shift"
+                )}
               </button>
             )}
           </div>
@@ -227,71 +236,71 @@ function ShiftHistory() {
 
       {/* Shift History Table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-              User
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-              Start Time
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-              End Time
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-              Duration
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-              Status
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-              Notes
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-200">
-          {shifts.map((s) => (
-            <tr key={s.id} className="hover:bg-gray-50">
-              <td className="px-4 py-3">
-                <div>
-                  <div className="font-medium">{s.full_name}</div>
-                  <div className="text-xs text-gray-500">@{s.username}</div>
-                </div>
-              </td>
-              <td className="px-4 py-3 text-sm">
-                {new Date(s.start_time).toLocaleString()}
-              </td>
-              <td className="px-4 py-3 text-sm">
-                {s.end_time ? new Date(s.end_time).toLocaleString() : "—"}
-              </td>
-              <td className="px-4 py-3 text-sm">
-                {calculateDuration(s.start_time, s.end_time)}
-              </td>
-              <td className="px-4 py-3">
-                <span
-                  className={`px-2 py-1 rounded text-xs font-semibold ${
-                    s.status === "active"
-                      ? "bg-emerald-100 text-emerald-700"
-                      : "bg-gray-200 text-gray-700"
-                  }`}
-                >
-                  {s.status}
-                </span>
-              </td>
-              <td className="px-4 py-3 text-sm text-gray-600">
-                {s.notes || "—"}
-              </td>
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                User
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Start Time
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                End Time
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Duration
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Status
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Notes
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      {shifts.length === 0 && (
-        <div className="p-8 text-center text-gray-500">
-          No shift history yet.
-        </div>
-      )}
-    </div>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {shifts.map((s) => (
+              <tr key={s.id} className="hover:bg-gray-50">
+                <td className="px-4 py-3">
+                  <div>
+                    <div className="font-medium">{s.full_name}</div>
+                    <div className="text-xs text-gray-500">@{s.username}</div>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-sm">
+                  {new Date(s.start_time).toLocaleString()}
+                </td>
+                <td className="px-4 py-3 text-sm">
+                  {s.end_time ? new Date(s.end_time).toLocaleString() : "—"}
+                </td>
+                <td className="px-4 py-3 text-sm">
+                  {calculateDuration(s.start_time, s.end_time)}
+                </td>
+                <td className="px-4 py-3">
+                  <span
+                    className={`px-2 py-1 rounded text-xs font-semibold ${
+                      s.status === "active"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-gray-200 text-gray-700"
+                    }`}
+                  >
+                    {s.status}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-sm text-gray-600">
+                  {s.notes || "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {shifts.length === 0 && (
+          <div className="p-8 text-center text-gray-500">
+            No shift history yet.
+          </div>
+        )}
+      </div>
     </div>
   );
 }
