@@ -7,7 +7,7 @@ import { toast } from "react-toastify";
 import { getAuthHeaders } from "@/lib/auth";
 import Spinner from "@/components/Spinner";
 import PageLoader from "@/components/PageLoader";
-import { LuPlus, LuPencil, LuTrash2, LuUserCog } from "react-icons/lu";
+import { LuPlus, LuPencil, LuTrash2, LuUserCog, LuClock } from "react-icons/lu";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
 
@@ -22,11 +22,156 @@ interface AppUser {
   created_at: string;
 }
 
+interface Shift {
+  id: number;
+  user_id: number;
+  username: string;
+  full_name: string;
+  start_time: string;
+  end_time: string | null;
+  status: "active" | "ended";
+  notes: string | null;
+}
+
 export default function SettingsPage() {
+  const [activeTab, setActiveTab] = useState<"accounts" | "shifts">("accounts");
+
   return (
     <ProtectedRoute>
-      <StaffManagement />
+      <div className="min-h-screen bg-linear-to-br from-amber-50 via-white to-rose-50 p-4 sm:p-6 lg:p-8">
+        <div className="max-w-7xl mx-auto">
+          <h1 className="text-2xl md:text-3xl font-bold mb-6">Settings</h1>
+
+          {/* Tabs */}
+          <div className="flex gap-2 mb-6 border-b border-gray-200">
+            <button
+              onClick={() => setActiveTab("accounts")}
+              className={`px-4 py-2 font-medium transition-colors ${
+                activeTab === "accounts"
+                  ? "text-amber-700 border-b-2 border-amber-700"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <LuUserCog size={18} className="inline mr-2" />
+              Accounts
+            </button>
+            <button
+              onClick={() => setActiveTab("shifts")}
+              className={`px-4 py-2 font-medium transition-colors ${
+                activeTab === "shifts"
+                  ? "text-amber-700 border-b-2 border-amber-700"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <LuClock size={18} className="inline mr-2" />
+              Shift History
+            </button>
+          </div>
+
+          {activeTab === "accounts" ? <StaffManagement /> : <ShiftHistory />}
+        </div>
+      </div>
     </ProtectedRoute>
+  );
+}
+
+function ShiftHistory() {
+  const [shifts, setShifts] = useState<Shift[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchShifts = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch(`${API_BASE}/api/shifts/history`, {
+          headers: getAuthHeaders(),
+        });
+        if (!res.ok) throw new Error("Failed to fetch shifts");
+        const data: Shift[] = await res.json();
+        setShifts(data);
+      } catch (err) {
+        console.error(err);
+        toast.error("Could not load shift history");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchShifts();
+  }, []);
+
+  const calculateDuration = (start: string, end: string | null) => {
+    if (!end) return "In progress";
+    const diff = new Date(end).getTime() - new Date(start).getTime();
+    const hours = Math.floor(diff / 1000 / 60 / 60);
+    const minutes = Math.floor((diff / 1000 / 60) % 60);
+    return `${hours}h ${minutes}m`;
+  };
+
+  if (loading) return <PageLoader message="Loading Shifts..." color="amber" />;
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50">
+          <tr>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+              User
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+              Start Time
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+              End Time
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+              Duration
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+              Status
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+              Notes
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-200">
+          {shifts.map((s) => (
+            <tr key={s.id} className="hover:bg-gray-50">
+              <td className="px-4 py-3">
+                <div>
+                  <div className="font-medium">{s.full_name}</div>
+                  <div className="text-xs text-gray-500">@{s.username}</div>
+                </div>
+              </td>
+              <td className="px-4 py-3 text-sm">
+                {new Date(s.start_time).toLocaleString()}
+              </td>
+              <td className="px-4 py-3 text-sm">
+                {s.end_time ? new Date(s.end_time).toLocaleString() : "—"}
+              </td>
+              <td className="px-4 py-3 text-sm">
+                {calculateDuration(s.start_time, s.end_time)}
+              </td>
+              <td className="px-4 py-3">
+                <span
+                  className={`px-2 py-1 rounded text-xs font-semibold ${
+                    s.status === "active"
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-gray-200 text-gray-700"
+                  }`}
+                >
+                  {s.status}
+                </span>
+              </td>
+              <td className="px-4 py-3 text-sm text-gray-600">{s.notes || "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {shifts.length === 0 && (
+        <div className="p-8 text-center text-gray-500">No shift history yet.</div>
+      )}
+    </div>
   );
 }
 
@@ -36,7 +181,6 @@ function StaffManagement() {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<AppUser | null>(null);
-
 
   const fetchUsers = async () => {
     try {
@@ -62,25 +206,24 @@ function StaffManagement() {
 
   if (!isManager()) {
     return (
-      <div className="min-h-screen bg-linear-to-br from-amber-50 via-white to-rose-50 p-6">
-        <div className="max-w-3xl mx-auto bg-white rounded-xl border border-gray-200 p-6">
-          <h1 className="text-2xl font-bold mb-2">Settings</h1>
-          <p className="text-gray-600">Only managers can access account management.</p>
-        </div>
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <p className="text-gray-600">
+          Only managers can access account management.
+        </p>
       </div>
     );
   }
 
-  if (loading) return <PageLoader message="Loading Accounts..." color="amber" />;
+  if (loading)
+    return <Spinner size="lg" color="amber" label="Loading..." />;
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-amber-50 via-white to-rose-50 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl md:text-3xl font-bold flex items-center">
-            <LuUserCog size={28} className="mr-2 text-amber-700" /> Account Management
-          </h1>
-          <button
+    <>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-bold flex items-center">
+          <LuUserCog size={24} className="mr-2 text-amber-700" /> Account Management
+        </h2>
+        <button
             onClick={() => {
               setEditing(null);
               setShowModal(true);
@@ -95,11 +238,21 @@ function StaffManagement() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Full Name</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Username
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Full Name
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Role
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -159,7 +312,9 @@ function StaffManagement() {
             </tbody>
           </table>
           {users.length === 0 && (
-            <div className="p-8 text-center text-gray-500">No accounts yet.</div>
+            <div className="p-8 text-center text-gray-500">
+              No accounts yet.
+            </div>
           )}
         </div>
 
@@ -173,11 +328,13 @@ function StaffManagement() {
             editing={editing}
           />
         )}
-      </div>
-    </div>
-  );
+      </>
+    );
 
-  function handleToggleActive(u: AppUser, setUsersState: (v: AppUser[]) => void) {
+  function handleToggleActive(
+    u: AppUser,
+    setUsersState: (v: AppUser[]) => void
+  ) {
     (async () => {
       try {
         const res = await fetch(`${API_BASE}/api/auth/users/${u.id}`, {
@@ -190,9 +347,13 @@ function StaffManagement() {
           }),
         });
         if (!res.ok) throw new Error("Failed to update user");
-        toast.success(`${!u.is_active ? "Activated" : "Deactivated"} ${u.username}`);
+        toast.success(
+          `${!u.is_active ? "Activated" : "Deactivated"} ${u.username}`
+        );
         setUsersState(
-          users.map((x) => (x.id === u.id ? { ...x, is_active: !u.is_active } : x))
+          users.map((x) =>
+            x.id === u.id ? { ...x, is_active: !u.is_active } : x
+          )
         );
       } catch (err) {
         console.error(err);
@@ -211,7 +372,9 @@ function StaffManagement() {
           headers: getAuthHeaders(),
         });
         if (!res.ok) {
-          const data = await res.json().catch(() => ({ message: "Failed to delete user" }));
+          const data = await res
+            .json()
+            .catch(() => ({ message: "Failed to delete user" }));
           throw new Error(data.message || "Failed to delete user");
         }
         toast.success(`Deleted ${u.username}`);
@@ -269,7 +432,12 @@ function UserModal({
       }
 
       const payload: Record<string, unknown> = isEdit
-        ? { fullName, role, isActive: editing!.is_active, username: username.trim() }
+        ? {
+            fullName,
+            role,
+            isActive: editing!.is_active,
+            username: username.trim(),
+          }
         : { username, fullName, role, password };
       if (password) payload.password = password;
 
@@ -304,7 +472,10 @@ function UserModal({
       <div className="bg-white p-6 rounded-xl shadow-lg w-full max-w-md">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-semibold">{title(editing)}</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-800">
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-800"
+          >
             ✕
           </button>
         </div>
@@ -384,7 +555,13 @@ function UserModal({
               className="px-4 py-2 rounded-lg bg-amber-800 text-white hover:bg-amber-700 flex items-center"
               disabled={saving}
             >
-              {saving ? <Spinner size="sm" thickness={2} /> : isEdit ? "Save" : "Create"}
+              {saving ? (
+                <Spinner size="sm" thickness={2} />
+              ) : isEdit ? (
+                "Save"
+              ) : (
+                "Create"
+              )}
             </button>
           </div>
         </form>
