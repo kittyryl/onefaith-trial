@@ -104,16 +104,11 @@ function ShiftHistory() {
       const res = await fetch(`${API_BASE}/api/shifts/current`, {
         headers: getAuthHeaders(),
       });
-      if (res.status === 404) {
-        // No active shift
-        setCurrentShift(null);
-        return;
-      }
       if (!res.ok) {
         setCurrentShift(null);
         return;
       }
-      const data: Shift = await res.json();
+      const data: Shift | null = await res.json();
       setCurrentShift(data);
     } catch (err) {
       console.error(err);
