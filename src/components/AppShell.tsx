@@ -27,7 +27,7 @@ export default function AppShell({ children }: AppShellProps) {
   }, []);
 
   return (
-    <div className="relative min-h-screen bg-gray-100">
+    <div className="relative min-h-screen bg-linear-to-br from-gray-50 to-gray-100">
       {/* Sidebar for mobile/tablet: off-canvas; for lg+: fixed visible */}
       <aside
         className={`fixed inset-y-0 left-0 z-40 w-64 bg-stone-900 text-white transform transition-transform duration-200 xl:translate-x-0 xl:fixed xl:block flex flex-col overflow-hidden ${
@@ -68,8 +68,6 @@ export default function AppShell({ children }: AppShellProps) {
 
       {/* Main content: add left padding on lg to account for fixed sidebar */}
       <main className="xl:pl-64 min-h-screen">
-        {/* Spacer for mobile header so content doesn’t hide under it */}
-        <div className="h-[52px] xl:h-0" />
         {children}
       </main>
     </div>

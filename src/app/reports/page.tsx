@@ -14,6 +14,7 @@ import {
   Bar,
   Legend,
 } from "recharts";
+import Card from "@/components/ui/Card";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
 
@@ -147,8 +148,8 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen">
-      <h1 className="text-3xl font-bold mb-6">Reports & Analytics</h1>
+    <div className="p-4 sm:p-6 md:p-8 min-h-screen">
+      <h1 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6">Reports & Analytics</h1>
 
       {/* Tabs */}
       <div className="mb-6 border-b">
@@ -179,10 +180,7 @@ export default function ReportsPage() {
       {activeTab === "carwash" && (
         <div className="space-y-6">
           {/* Revenue trend line chart */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-2xl font-semibold mb-4">
-              Carwash Revenue (Last 30 days)
-            </h2>
+          <Card title="Carwash Revenue (Last 30 days)">
             <div className="w-full h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={carwashRevenue} margin={{ left: 8, right: 8 }}>
@@ -205,13 +203,10 @@ export default function ReportsPage() {
                 </LineChart>
               </ResponsiveContainer>
             </div>
-          </div>
+          </Card>
 
           {/* Popular Services - add a small bar chart + table */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-semibold">Most Popular Services</h2>
-            </div>
+          <Card title="Most Popular Services">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
@@ -274,13 +269,10 @@ export default function ReportsPage() {
                 )}
               </div>
             </div>
-          </div>
+          </Card>
 
           {/* Services by Vehicle Type */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-2xl font-semibold mb-4">
-              Services by Vehicle Type
-            </h2>
+          <Card title="Services by Vehicle Type">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-100">
@@ -310,11 +302,10 @@ export default function ReportsPage() {
                 </div>
               )}
             </div>
-          </div>
+          </Card>
 
           {/* Cancellations */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-2xl font-semibold mb-4">Cancellation Analysis</h2>
+          <Card title="Cancellation Analysis">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-100">
@@ -348,17 +339,14 @@ export default function ReportsPage() {
                 </div>
               )}
             </div>
-          </div>
+          </Card>
         </div>
       )}
 
       {activeTab === "coffee" && (
         <div className="space-y-6">
           {/* Coffee revenue trend */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-2xl font-semibold mb-4">
-              Coffee Revenue (Last 30 days)
-            </h2>
+          <Card title="Coffee Revenue (Last 30 days)">
             <div className="w-full h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={coffeeRevenue} margin={{ left: 8, right: 8 }}>
@@ -381,13 +369,10 @@ export default function ReportsPage() {
                 </LineChart>
               </ResponsiveContainer>
             </div>
-          </div>
+          </Card>
 
           {/* Top products chart + table */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-semibold">Top Coffee Products</h2>
-            </div>
+          <Card title="Top Coffee Products">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
@@ -434,7 +419,7 @@ export default function ReportsPage() {
                 )}
               </div>
             </div>
-          </div>
+          </Card>
         </div>
       )}
     </div>

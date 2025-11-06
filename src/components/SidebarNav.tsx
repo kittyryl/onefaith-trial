@@ -10,56 +10,80 @@ import {
   LuCar,
   LuCoffee,
   LuSettings,
+  LuChartBar,
 } from "react-icons/lu";
 import { useAuth } from "@/contexts/AuthContext";
 
-// Nav items
-const navItems = [
+// Nav sections
+const managementItems = [
   { name: "Dashboard", href: "/", icon: LuLayoutDashboard },
   { name: "Inventory", href: "/inventory", icon: LuBoxes },
   { name: "Sales", href: "/sales", icon: LuArmchair },
-  { name: "Reports", href: "/reports", icon: LuBoxes },
+  { name: "Reports", href: "/reports", icon: LuChartBar },
   { name: "Carwash Services", href: "/carwash-services", icon: LuCar },
-  { name: "Coffee POS", href: "/coffee-pos", icon: LuCoffee, isPos: true },
-  { name: "Carwash POS", href: "/carwash-pos", icon: LuCar, isPos: true },
   { name: "Settings", href: "/settings", icon: LuSettings },
+];
+
+const posItems = [
+  { name: "Coffee POS", href: "/coffee-pos", icon: LuCoffee },
+  { name: "Carwash POS", href: "/carwash-pos", icon: LuCar },
 ];
 
 export default function SidebarNav() {
   const pathname = usePathname();
   const { user } = useAuth();
 
+  const linkClass = (active: boolean, accent?: "pos") =>
+    `flex items-center gap-3 p-3 rounded-lg transition-colors ${
+      active
+        ? accent === "pos"
+          ? "bg-amber-700 text-white shadow"
+          : "bg-stone-700 text-white shadow"
+        : "text-gray-300 hover:bg-stone-800 hover:text-white"
+    }`;
+
+  const isActive = (href: string) =>
+    pathname === href || (href !== "/" && pathname.startsWith(href));
+
   return (
     <nav className="flex flex-col h-full">
-      <div className="px-4 space-y-2 flex-1">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href;
-          const Icon = item.icon;
+      <div className="px-4 py-3">
+        <p className="text-xs uppercase tracking-wider text-stone-400 mb-2">Management</p>
+        <div className="space-y-2">
+          {managementItems.map((item) => {
+            const active = isActive(item.href);
+            const Icon = item.icon;
+            return (
+              <Link key={item.href} href={item.href} className={linkClass(active)}>
+                <Icon size={20} />
+                <span>{item.name}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
 
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
-                isActive
-                  ? item.isPos // POS links get the Coffee Brown accent
-                    ? "bg-amber-900 text-white"
-                    : "bg-gray-700 text-white" // Admin links use a neutral dark gray
-                  : "hover:bg-amber-900 hover:text-white text-gray-300" // Hover is Coffee Brown
-              }`}
-            >
-              <Icon size={20} />
-              <span>{item.name}</span>
-            </Link>
-          );
-        })}
+      <div className="px-4 py-3">
+        <p className="text-xs uppercase tracking-wider text-stone-400 mb-2">POS</p>
+        <div className="space-y-2">
+          {posItems.map((item) => {
+            const active = isActive(item.href);
+            const Icon = item.icon;
+            return (
+              <Link key={item.href} href={item.href} className={linkClass(active, "pos")}>
+                <Icon size={20} />
+                <span>{item.name}</span>
+              </Link>
+            );
+          })}
+        </div>
       </div>
 
       {/* Sidebar footer with logged in user info */}
       {user && (
-        <div className="px-4 pb-4 border-t border-stone-800 pt-4">
+        <div className="mt-auto px-4 pb-4 border-t border-stone-800 pt-4">
           <div className="px-3 py-2 rounded-lg bg-stone-800">
-            <div className="text-white font-medium text-sm">
+            <div className="text-white font-medium text-sm truncate">
               {user.fullName}
             </div>
             <div className="text-amber-500 text-xs uppercase tracking-wide font-semibold mt-0.5">
