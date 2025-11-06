@@ -18,6 +18,15 @@ import PageLoader from "@/components/PageLoader";
 import { getAuthHeaders } from "@/lib/auth";
 import { useAuth } from "@/contexts/AuthContext";
 
+// Normalize unit variants to canonical singular display values
+function normalizeUnitSingular(unit?: string | null): string {
+  if (!unit) return "";
+  const u = unit.trim().toLowerCase();
+  if (["piece", "pieces", "pc", "pcs"].includes(u)) return "Piece";
+  if (["bottle", "bottles"].includes(u)) return "Bottle";
+  return unit;
+}
+
 // Types
 
 interface Ingredient {
@@ -130,11 +139,13 @@ function ItemFormModal({
   // --- States ---
   const [name, setName] = useState<string>(initialData?.name || "");
   const [category, setCategory] = useState<string>(initialData?.category || "");
-  const [unitOfMeasure, setUnitOfMeasure] = useState<string>(
-    isEdit && isIngredient && "unit_of_measure" in initialData
-      ? initialData.unit_of_measure || ""
-      : ""
-  );
+  const [unitOfMeasure, setUnitOfMeasure] = useState<string>(() => {
+    if (isEdit && isIngredient && initialData && "unit_of_measure" in initialData) {
+      const ing = initialData as Ingredient;
+      return normalizeUnitSingular(ing.unit_of_measure || "");
+    }
+    return "";
+  });
   const [requiredStock, setRequiredStock] = useState<string>(
     isEdit && isIngredient && "required_stock" in initialData
       ? String(initialData.required_stock || 0)
@@ -461,8 +472,8 @@ function StockMovementModal({
   return (
     <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
       <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
-        <h2 className="text-2xl font-bold mb-4">Record Stock Movement</h2>
-        <h3 className="text-xl text-amber-800 mb-6">Item: {ingredient.name}</h3>
+  <h2 className="text-2xl font-bold mb-4">Record Stock Movement</h2>
+  <h3 className="text-xl text-amber-800 mb-6">Item: {ingredient.name}</h3>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
@@ -507,7 +518,7 @@ function StockMovementModal({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">
-                Quantity ({ingredient.unit_of_measure})
+                Quantity ({normalizeUnitSingular(ingredient.unit_of_measure)})
               </label>
               <input
                 type="number"
@@ -926,7 +937,7 @@ function Inventory() {
                     {ingredient.category}
                   </td>
                   <td className="w-28 px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {ingredient.unit_of_measure || "N/A"}
+                    {normalizeUnitSingular(ingredient.unit_of_measure) || "N/A"}
                   </td>
                   <td className="w-24 px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-right">
                     {Number(ingredient.required_stock).toLocaleString()}
