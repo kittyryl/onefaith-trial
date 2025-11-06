@@ -780,37 +780,7 @@ function Inventory() {
   }, []);
   /* eslint-enable react-hooks/exhaustive-deps */
 
-  // Normalize unit variants to a canonical singular form for display logic
-  const normalizeUnit = (unit?: string) => {
-    if (!unit) return undefined;
-    const u = unit.trim().toLowerCase();
-    if (["piece", "pieces", "pc", "pcs"].includes(u)) return "Piece";
-    if (["bottle", "bottles"].includes(u)) return "Bottle";
-    return unit; // keep original if unknown
-  };
-
-  // Helper: pluralize unit based on quantity, robust to legacy plural values
-  const pluralizeUnit = (unit: string | undefined, qty: number) => {
-    if (!unit) return "";
-    const abs = Math.abs(qty);
-    const isOne = abs === 1;
-    const norm = normalizeUnit(unit);
-    switch (norm) {
-      case "Bottle":
-        return isOne ? "Bottle" : "Bottles";
-      case "Piece":
-        return isOne ? "Piece" : "Pieces";
-      default: {
-        const endsWithS = unit.toLowerCase().endsWith("s");
-        if (isOne) {
-          // convert plural to singular if trivially pluralized, else keep
-          return endsWithS ? unit.slice(0, -1) : unit;
-        }
-        // quantity != 1 → ensure plural but avoid double 's'
-        return endsWithS ? unit : `${unit}s`;
-      }
-    }
-  };
+  // Note: Units are shown only in the Unit column; Required/Current show numbers only
 
   // --- Filter and Sort Logic ---
   const handleSort = (column: string) => {
@@ -959,11 +929,7 @@ function Inventory() {
                     {ingredient.unit_of_measure || "N/A"}
                   </td>
                   <td className="w-24 px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {ingredient.required_stock}{" "}
-                    {pluralizeUnit(
-                      ingredient.unit_of_measure,
-                      ingredient.required_stock
-                    )}
+                    {ingredient.required_stock}
                   </td>
                   <td className="w-32 px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
                     <div className="flex items-center gap-2">
@@ -975,12 +941,6 @@ function Inventory() {
                         }`}
                       >
                         {ingredient.current_stock}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {pluralizeUnit(
-                          ingredient.unit_of_measure,
-                          ingredient.current_stock
-                        )}
                       </span>
                     </div>
                   </td>
