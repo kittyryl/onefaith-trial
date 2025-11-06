@@ -196,6 +196,7 @@ interface PaymentModalProps {
   onSubmit: (cashTendered: number) => void;
   cashTendered: string;
   setCashTendered: (value: string) => void;
+  isSubmitting: boolean;
 }
 
 function PaymentModal({
@@ -204,6 +205,7 @@ function PaymentModal({
   onSubmit,
   cashTendered,
   setCashTendered,
+  isSubmitting,
 }: PaymentModalProps) {
   const numpadKeys = [
     "1",
@@ -228,6 +230,7 @@ function PaymentModal({
   };
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     const cashAmount = parseFloat(cashTendered);
     if (isNaN(cashAmount) || cashTendered === "") {
       toast.error("Please enter a cash amount.");
@@ -280,9 +283,10 @@ function PaymentModal({
           </div>
           <button
             type="submit"
-            className="w-full bg-green-500 text-white p-3 rounded-lg font-bold text-lg cursor-pointer"
+            disabled={isSubmitting}
+            className="w-full bg-green-500 text-white p-3 rounded-lg font-bold text-lg cursor-pointer disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            Confirm Payment
+            {isSubmitting ? "Processing..." : "Confirm Payment"}
           </button>
         </form>
       </div>
@@ -320,6 +324,7 @@ function CoffeePOS() {
   const [completedOrder, setCompletedOrder] = useState<OrderDetails | null>(
     null
   );
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState<boolean>(false);
 
   // Fetch products
   useEffect(() => {
@@ -471,6 +476,7 @@ function CoffeePOS() {
   };
 
   const handleProceedToPayment = async () => {
+    if (isSubmittingPayment) return;
     if (cart.length === 0) {
       toast.error("Cart is empty.");
       return;
@@ -498,10 +504,15 @@ function CoffeePOS() {
     };
 
     if (paymentMethod === "Gcash") {
-      const submissionResult = await submitOrderToAPI(baseOrder);
-      if (submissionResult) {
-        setCompletedOrder(baseOrder);
-        setIsReceiptModalOpen(true);
+      setIsSubmittingPayment(true);
+      try {
+        const submissionResult = await submitOrderToAPI(baseOrder);
+        if (submissionResult) {
+          setCompletedOrder(baseOrder);
+          setIsReceiptModalOpen(true);
+        }
+      } finally {
+        setIsSubmittingPayment(false);
       }
     } else if (paymentMethod === "Cash") {
       setIsPaymentModalOpen(true);
@@ -509,6 +520,8 @@ function CoffeePOS() {
   };
 
   const handleCashPaymentSubmit = async (cashAmount: number) => {
+    if (isSubmittingPayment) return;
+    setIsSubmittingPayment(true);
     const orderDetails: OrderDetails = {
       orderId: `ORD-${uuidv4().slice(0, 8)}`,
       items: cart,
@@ -522,12 +535,16 @@ function CoffeePOS() {
       changeDue: cashAmount - total,
     };
 
-    const submissionResult = await submitOrderToAPI(orderDetails);
-    if (submissionResult) {
-      setCompletedOrder(orderDetails);
-      setIsPaymentModalOpen(false);
-      setIsReceiptModalOpen(true);
-      setCashTendered("");
+    try {
+      const submissionResult = await submitOrderToAPI(orderDetails);
+      if (submissionResult) {
+        setCompletedOrder(orderDetails);
+        setIsPaymentModalOpen(false);
+        setIsReceiptModalOpen(true);
+        setCashTendered("");
+      }
+    } finally {
+      setIsSubmittingPayment(false);
     }
   };
 
@@ -556,6 +573,7 @@ function CoffeePOS() {
           onSubmit={handleCashPaymentSubmit}
           cashTendered={cashTendered}
           setCashTendered={setCashTendered}
+          isSubmitting={isSubmittingPayment}
         />
       )}
       {isReceiptModalOpen && completedOrder && (
@@ -839,9 +857,13 @@ function CoffeePOS() {
           <button
             onClick={handleProceedToPayment}
             className="w-full bg-linear-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed disabled:shadow-none"
-            disabled={cart.length === 0}
+            disabled={cart.length === 0 || isSubmittingPayment}
           >
-            {cart.length === 0 ? "Add Items to Continue" : "Proceed to Payment"}
+            {cart.length === 0
+              ? "Add Items to Continue"
+              : isSubmittingPayment
+              ? "Processing..."
+              : "Proceed to Payment"}
           </button>
         </div>
       </div>
