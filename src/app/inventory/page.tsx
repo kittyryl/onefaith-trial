@@ -330,7 +330,7 @@ function ItemFormModal({
                   >
                     <option value="">Select unit</option>
                     <option value="Bottle">Bottle</option>
-                    <option value="Pieces">Pieces</option>
+                    <option value="Piece">Piece</option>
                   </select>
                   <p className="mt-1 text-xs text-gray-500">Allowed units: Bottle or Pieces</p>
                 </div>
