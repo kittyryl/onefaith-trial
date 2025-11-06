@@ -780,6 +780,22 @@ function Inventory() {
   }, []);
   /* eslint-enable react-hooks/exhaustive-deps */
 
+  // Helper: pluralize unit based on quantity (expects singular units in data)
+  const pluralizeUnit = (unit: string | undefined, qty: number) => {
+    if (!unit) return "";
+    const abs = Math.abs(qty);
+    const isOne = abs === 1;
+    switch (unit) {
+      case "Bottle":
+        return isOne ? "Bottle" : "Bottles";
+      case "Piece":
+        return isOne ? "Piece" : "Pieces";
+      default:
+        // Fallback: naive pluralization
+        return isOne ? unit : `${unit}s`;
+    }
+  };
+
   // --- Filter and Sort Logic ---
   const handleSort = (column: string) => {
     if (sortColumn === column) {
@@ -893,7 +909,7 @@ function Inventory() {
                 label="Category"
                 className="w-24"
               />
-              <th className="w-20 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="w-28 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Unit
               </th>
               <SortableHeader
@@ -923,22 +939,32 @@ function Inventory() {
                   <td className="w-24 px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {ingredient.category}
                   </td>
-                  <td className="w-20 px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="w-28 px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {ingredient.unit_of_measure || "N/A"}
                   </td>
                   <td className="w-24 px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {ingredient.required_stock} {ingredient.unit_of_measure}
+                    {ingredient.required_stock}{" "}
+                    {pluralizeUnit(
+                      ingredient.unit_of_measure,
+                      ingredient.required_stock
+                    )}
                   </td>
                   <td className="w-32 px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
-                    <div className="flex flex-col">
+                    <div className="flex items-center gap-2">
                       <span
-                        className={`px-2 py-1 inline-flex justify-center w-16 text-xs leading-5 font-semibold rounded-lg ${
+                        className={`px-2 py-1 inline-flex justify-center min-w-12 text-xs leading-5 font-semibold rounded-lg ${
                           isLow
                             ? "bg-red-500 text-white"
                             : "bg-emerald-100 text-emerald-800"
                         }`}
                       >
                         {ingredient.current_stock}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {pluralizeUnit(
+                          ingredient.unit_of_measure,
+                          ingredient.current_stock
+                        )}
                       </span>
                     </div>
                   </td>
