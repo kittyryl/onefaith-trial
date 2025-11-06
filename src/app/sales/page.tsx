@@ -11,7 +11,7 @@ import {
   LuClock,
 } from "react-icons/lu";
 import { toast } from "react-toastify";
-import ProtectedRoute from "@/components/ProtectedRoute";
+import ManagerOnlyRoute from "@/components/ManagerOnlyRoute";
 import Spinner from "@/components/Spinner";
 import { getAuthHeaders } from "@/lib/auth";
 
@@ -572,8 +572,8 @@ function Sales() {
 
 export default function SalesPage() {
   return (
-    <ProtectedRoute>
+    <ManagerOnlyRoute>
       <Sales />
-    </ProtectedRoute>
+    </ManagerOnlyRoute>
   );
 }

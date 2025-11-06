@@ -16,12 +16,12 @@ import { useAuth } from "@/contexts/AuthContext";
 
 // Nav sections
 const managementItems = [
-  { name: "Dashboard", href: "/", icon: LuLayoutDashboard },
-  { name: "Inventory", href: "/inventory", icon: LuBoxes },
-  { name: "Sales", href: "/sales", icon: LuArmchair },
-  { name: "Reports", href: "/reports", icon: LuChartBar },
-  { name: "Carwash Services", href: "/carwash-services", icon: LuCar },
-  { name: "Settings", href: "/settings", icon: LuSettings },
+  { name: "Dashboard", href: "/", icon: LuLayoutDashboard, roles: ["manager", "staff"] },
+  { name: "Inventory", href: "/inventory", icon: LuBoxes, roles: ["manager", "staff"] },
+  { name: "Sales", href: "/sales", icon: LuArmchair, roles: ["manager"] },
+  { name: "Reports", href: "/reports", icon: LuChartBar, roles: ["manager"] },
+  { name: "Carwash Services", href: "/carwash-services", icon: LuCar, roles: ["manager", "staff"] },
+  { name: "Settings", href: "/settings", icon: LuSettings, roles: ["manager", "staff"] },
 ];
 
 const posItems = [
@@ -45,12 +45,17 @@ export default function SidebarNav() {
   const isActive = (href: string) =>
     pathname === href || (href !== "/" && pathname.startsWith(href));
 
+  // Filter management items based on user role
+  const visibleManagementItems = managementItems.filter(
+    (item) => !item.roles || item.roles.includes(user?.role || "staff")
+  );
+
   return (
     <nav className="flex flex-col h-full">
       <div className="px-4 py-3">
         <p className="text-xs uppercase tracking-wider text-stone-400 mb-2">Management</p>
         <div className="space-y-2">
-          {managementItems.map((item) => {
+          {visibleManagementItems.map((item) => {
             const active = isActive(item.href);
             const Icon = item.icon;
             return (

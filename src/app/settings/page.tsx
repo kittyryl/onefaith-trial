@@ -45,8 +45,8 @@ interface Shift {
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<
     "accounts" | "shifts" | "carwash" | "products"
-  >("accounts");
-  const { logout } = useAuth();
+  >("shifts");
+  const { logout, isManager } = useAuth();
 
   return (
     <ProtectedRoute>
@@ -64,17 +64,19 @@ export default function SettingsPage() {
 
           {/* Tabs */}
           <div className="flex gap-2 mb-6 border-b border-gray-200">
-            <button
-              onClick={() => setActiveTab("accounts")}
-              className={`px-4 py-2 font-medium transition-colors ${
-                activeTab === "accounts"
-                  ? "text-amber-700 border-b-2 border-amber-700"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              <LuUserCog size={18} className="inline mr-2" />
-              Accounts
-            </button>
+            {isManager() && (
+              <button
+                onClick={() => setActiveTab("accounts")}
+                className={`px-4 py-2 font-medium transition-colors ${
+                  activeTab === "accounts"
+                    ? "text-amber-700 border-b-2 border-amber-700"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                <LuUserCog size={18} className="inline mr-2" />
+                Accounts
+              </button>
+            )}
             <button
               onClick={() => setActiveTab("shifts")}
               className={`px-4 py-2 font-medium transition-colors ${
@@ -86,28 +88,32 @@ export default function SettingsPage() {
               <LuClock size={18} className="inline mr-2" />
               Shift History
             </button>
-            <button
-              onClick={() => setActiveTab("carwash")}
-              className={`px-4 py-2 font-medium transition-colors ${
-                activeTab === "carwash"
-                  ? "text-amber-700 border-b-2 border-amber-700"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              <LuCar size={18} className="inline mr-2" />
-              Carwash Services
-            </button>
-            <button
-              onClick={() => setActiveTab("products")}
-              className={`px-4 py-2 font-medium transition-colors ${
-                activeTab === "products"
-                  ? "text-amber-700 border-b-2 border-amber-700"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              <LuCoffee size={18} className="inline mr-2" />
-              Coffee Products
-            </button>
+            {isManager() && (
+              <button
+                onClick={() => setActiveTab("carwash")}
+                className={`px-4 py-2 font-medium transition-colors ${
+                  activeTab === "carwash"
+                    ? "text-amber-700 border-b-2 border-amber-700"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                <LuCar size={18} className="inline mr-2" />
+                Carwash Services
+              </button>
+            )}
+            {isManager() && (
+              <button
+                onClick={() => setActiveTab("products")}
+                className={`px-4 py-2 font-medium transition-colors ${
+                  activeTab === "products"
+                    ? "text-amber-700 border-b-2 border-amber-700"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                <LuCoffee size={18} className="inline mr-2" />
+                Coffee Products
+              </button>
+            )}
           </div>
 
           {activeTab === "accounts" ? (

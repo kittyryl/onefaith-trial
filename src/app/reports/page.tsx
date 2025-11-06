@@ -15,6 +15,7 @@ import {
   Legend,
 } from "recharts";
 import Card from "@/components/ui/Card";
+import ManagerOnlyRoute from "@/components/ManagerOnlyRoute";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
 
@@ -53,7 +54,7 @@ interface CoffeeTopProduct {
   total_revenue: number;
 }
 
-export default function ReportsPage() {
+function ReportsPage() {
   const [popularServices, setPopularServices] = useState<PopularService[]>([]);
   const [cancellations, setCancellations] = useState<CancellationStats[]>([]);
   const [servicesByVehicle, setServicesByVehicle] = useState<
@@ -425,3 +426,13 @@ export default function ReportsPage() {
     </div>
   );
 }
+
+function ReportsPageWrapper() {
+  return (
+    <ManagerOnlyRoute>
+      <ReportsPage />
+    </ManagerOnlyRoute>
+  );
+}
+
+export default ReportsPageWrapper;

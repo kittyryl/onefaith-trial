@@ -964,30 +964,30 @@ function Inventory() {
                   </td>
                   <td className="w-36 px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end space-x-4">
-                      <div className="flex items-center space-x-2">
-                        {isManager() && (
+                      {isManager() && (
+                        <div className="flex items-center space-x-2">
                           <button
                             onClick={() => openEditForm(ingredient)}
                             className="text-amber-600 hover:text-amber-900 cursor-pointer"
                           >
                             <LuPencilLine size={18} />
                           </button>
-                        )}
-                        {isManager() && (
                           <button
                             onClick={() => openDeleteConfirmation(ingredient)}
                             className="text-red-600 hover:text-red-900 cursor-pointer"
                           >
                             <LuTrash2 size={18} />
                           </button>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => openMovementModal(ingredient)}
-                        className="bg-amber-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-amber-700 transition-colors shadow-sm"
-                      >
-                        Stock IN/OUT
-                      </button>
+                        </div>
+                      )}
+                      {isManager() && (
+                        <button
+                          onClick={() => openMovementModal(ingredient)}
+                          className="bg-amber-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-amber-700 transition-colors shadow-sm"
+                        >
+                          Stock IN/OUT
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
