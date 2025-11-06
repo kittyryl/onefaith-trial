@@ -7,8 +7,6 @@ import {
   LuPackage,
   LuPlus,
   LuX,
-  LuCoffee,
-  LuFlaskConical as LuFlask,
   LuSearch,
   LuArrowUpDown,
   LuDownload,
@@ -551,11 +549,7 @@ function StockMovementModal({
 // --- MAIN PAGE COMPONENT ---
 function Inventory() {
   const { isManager } = useAuth();
-  const [activeTab, setActiveTab] = useState<"ingredients" | "products">(
-    "ingredients"
-  );
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
 
@@ -575,48 +569,12 @@ function Inventory() {
   // --- Filter and Sort States ---
   const [searchQuery, setSearchQuery] = useState("");
   const [showLowStockOnly, setShowLowStockOnly] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedIngredientCategory, setSelectedIngredientCategory] =
     useState("All");
   const [sortColumn, setSortColumn] = useState<string>("");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   // --- CSV Export Functions ---
-  const exportProductsToCSV = () => {
-    const dataToExport = filteredAndSortedProducts();
-
-    if (dataToExport.length === 0) {
-      toast.warning("No products to export");
-      return;
-    }
-
-    const headers = [
-      "Product Name",
-      "Category",
-      "Price (₱)",
-      "Needs Hot/Cold",
-      "Image URL",
-    ];
-    const rows = dataToExport.map((product) => [
-      product.name,
-      product.category,
-      Number(product.price).toFixed(2),
-      product.needs_temp ? "Yes" : "No",
-      product.image_url || "N/A",
-    ]);
-
-    const csvContent = [
-      headers.join(","),
-      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
-    ].join("\n");
-
-    downloadCSV(
-      csvContent,
-      `products-${new Date().toISOString().split("T")[0]}.csv`
-    );
-    toast.success(`Exported ${dataToExport.length} products to CSV`);
-  };
-
   const exportIngredientsToCSV = () => {
     const dataToExport = filteredAndSortedIngredients();
 
@@ -674,29 +632,15 @@ function Inventory() {
   const fetchAllData = async () => {
     setLoading(true);
     try {
-      const [ingResponse, prodResponse] = await Promise.all([
-        fetch(`${API_BASE}/api/ingredients`, {
-          headers: getAuthHeaders(),
-        }),
-        fetch(`${API_BASE}/api/products`, {
-          headers: getAuthHeaders(),
-        }),
-      ]);
+      const ingResponse = await fetch(`${API_BASE}/api/ingredients`, {
+        headers: getAuthHeaders(),
+      });
 
       const ingData: Ingredient[] = ingResponse.ok
         ? await ingResponse.json()
         : [];
-      const prodDataRaw: Product[] = prodResponse.ok
-        ? await prodResponse.json()
-        : [];
-
-      const prodData: Product[] = prodDataRaw.map((p) => ({
-        ...p,
-        price: Number(p.price),
-      }));
 
       setIngredients(ingData);
-      setProducts(prodData);
     } catch {
       toast.error("Could not load all inventory data.");
     } finally {
@@ -706,7 +650,7 @@ function Inventory() {
 
   // Create/update item
   const handleSaveOrUpdate = async (data: FormData) => {
-    const isIngredient = activeTab === "ingredients";
+    const isIngredient = true; // Inventory handles ingredients only
     let endpoint = "";
     const method = data.id ? "PUT" : "POST";
 
@@ -895,46 +839,7 @@ function Inventory() {
     return filtered;
   };
 
-  const filteredAndSortedProducts = () => {
-    let filtered = products.filter((prod) =>
-      prod.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
-    // Apply category filter
-    if (selectedCategory !== "All") {
-      filtered = filtered.filter((prod) => prod.category === selectedCategory);
-    }
-
-    if (sortColumn) {
-      filtered.sort((a, b) => {
-        let aVal: string | number = "";
-        let bVal: string | number = "";
-
-        switch (sortColumn) {
-          case "name":
-            aVal = a.name.toLowerCase();
-            bVal = b.name.toLowerCase();
-            break;
-          case "category":
-            aVal = a.category.toLowerCase();
-            bVal = b.category.toLowerCase();
-            break;
-          case "price":
-            aVal = a.price;
-            bVal = b.price;
-            break;
-          default:
-            return 0;
-        }
-
-        if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
-        if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
-        return 0;
-      });
-    }
-
-    return filtered;
-  };
+  // Products are managed in Settings; no products list in Inventory
 
   if (loading) return <PageLoader message="Loading Inventory…" color="amber" />;
 
@@ -1036,12 +941,14 @@ function Inventory() {
                   <td className="w-36 px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end space-x-4">
                       <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => openEditForm(ingredient)}
-                          className="text-amber-600 hover:text-amber-900 cursor-pointer"
-                        >
-                          <LuPencilLine size={18} />
-                        </button>
+                        {isManager() && (
+                          <button
+                            onClick={() => openEditForm(ingredient)}
+                            className="text-amber-600 hover:text-amber-900 cursor-pointer"
+                          >
+                            <LuPencilLine size={18} />
+                          </button>
+                        )}
                         {isManager() && (
                           <button
                             onClick={() => openDeleteConfirmation(ingredient)}
@@ -1089,7 +996,7 @@ function Inventory() {
             setItemToDelete(null);
           }}
           onConfirm={handleDeleteItem}
-          activeTab={activeTab}
+          activeTab={"ingredients"}
         />
       )}
 
@@ -1102,7 +1009,7 @@ function Inventory() {
             setItemToEdit(null);
           }}
           onSave={handleSaveOrUpdate}
-          activeTab={activeTab}
+          activeTab={"ingredients"}
         />
       )}
 
@@ -1127,25 +1034,21 @@ function Inventory() {
           </h1>
           <div className="flex items-center gap-3">
             <button
-              onClick={
-                activeTab === "products"
-                  ? exportProductsToCSV
-                  : exportIngredientsToCSV
-              }
+              onClick={exportIngredientsToCSV}
               className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center hover:bg-blue-700 transition-colors shadow-sm"
             >
               <LuDownload size={18} className="mr-2" />
               Export CSV
             </button>
-            <button
-              onClick={openNewForm}
-              className="bg-amber-800 text-white px-4 py-2 rounded-lg flex items-center hover:bg-amber-700 transition-colors shadow-sm"
-            >
-              <LuPlus size={18} className="mr-2" />
-              {activeTab === "ingredients"
-                ? "Add Ingredient"
-                : "Add POS Product"}
-            </button>
+            {isManager() && (
+              <button
+                onClick={openNewForm}
+                className="bg-amber-800 text-white px-4 py-2 rounded-lg flex items-center hover:bg-amber-700 transition-colors shadow-sm"
+              >
+                <LuPlus size={18} className="mr-2" />
+                Add Ingredient
+              </button>
+            )}
           </div>
         </div>
 
@@ -1159,16 +1062,14 @@ function Inventory() {
               />
               <input
                 type="text"
-                placeholder={`Search ${
-                  activeTab === "ingredients" ? "ingredients" : "products"
-                }...`}
+                placeholder={`Search ingredients...`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
               />
             </div>
 
-            {activeTab === "ingredients" && (
+            {
               <button
                 onClick={() => setShowLowStockOnly(!showLowStockOnly)}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
@@ -1179,33 +1080,11 @@ function Inventory() {
               >
                 {showLowStockOnly ? "✓ Low Stock Only" : "Low Stock Only"}
               </button>
-            )}
+            }
           </div>
 
-          {/* Category Filter for Products Tab */}
-          {activeTab === "products" && (
-            <div className="flex items-center gap-3 overflow-x-auto pb-2">
-              {[
-                "All",
-                ...Array.from(new Set(products.map((p) => p.category))),
-              ].map((category) => (
-                <button
-                  key={category}
-                  onClick={() => setSelectedCategory(category)}
-                  className={`px-5 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                    selectedCategory === category
-                      ? "bg-amber-800 text-white"
-                      : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-300"
-                  }`}
-                >
-                  {category}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Category Filter for Ingredients Tab */}
-          {activeTab === "ingredients" && (
+          {/* Category Filter for Ingredients */}
+          {
             <div className="flex items-center gap-3 overflow-x-auto pb-2">
               {[
                 "All",
@@ -1224,59 +1103,13 @@ function Inventory() {
                 </button>
               ))}
             </div>
-          )}
-        </div>
-
-        {/* Tabs */}
-        <div className="mb-6">
-          <div className="inline-flex rounded-lg bg-gray-100 p-1">
-            <button
-              onClick={() => {
-                setActiveTab("products");
-                setSearchQuery("");
-                setSortColumn("");
-                setSelectedCategory("All");
-                setSelectedIngredientCategory("All");
-              }}
-              className={`px-4 py-2 text-sm font-medium rounded-md flex items-center ${
-                activeTab === "products"
-                  ? "bg-white text-amber-900 shadow-sm"
-                  : "text-gray-600 hover:text-gray-800"
-              }`}
-            >
-              <LuCoffee className="mr-2" size={16} /> POS Products
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab("ingredients");
-                setSearchQuery("");
-                setSortColumn("");
-                setShowLowStockOnly(false);
-                setSelectedCategory("All");
-                setSelectedIngredientCategory("All");
-              }}
-              className={`ml-1 px-4 py-2 text-sm font-medium rounded-md flex items-center ${
-                activeTab === "ingredients"
-                  ? "bg-white text-amber-900 shadow-sm"
-                  : "text-gray-600 hover:text-gray-800"
-              }`}
-            >
-              <LuFlask className="mr-2" size={16} /> Raw Ingredients
-            </button>
-          </div>
+          }
         </div>
       </div>
 
-      {/* Table Content based on Tab */}
+      {/* Table Content */}
       <div className="max-w-7xl mx-auto">
-        {activeTab === "ingredients" ? (
-          renderIngredientTable()
-        ) : (
-          <div className="bg-white rounded-xl border border-amber-200 p-6 text-amber-900">
-            <p className="font-semibold mb-2">POS Products have moved</p>
-            <p className="text-sm">Manage Coffee POS products under Settings → Coffee Products.</p>
-          </div>
-        )}
+        {renderIngredientTable()}
       </div>
     </div>
   );
