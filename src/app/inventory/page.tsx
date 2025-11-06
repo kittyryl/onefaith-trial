@@ -980,14 +980,12 @@ function Inventory() {
                           </button>
                         </div>
                       )}
-                      {isManager() && (
-                        <button
-                          onClick={() => openMovementModal(ingredient)}
-                          className="bg-amber-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-amber-700 transition-colors shadow-sm"
-                        >
-                          Stock IN/OUT
-                        </button>
-                      )}
+                      <button
+                        onClick={() => openMovementModal(ingredient)}
+                        className="bg-amber-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-amber-700 transition-colors shadow-sm"
+                      >
+                        Stock IN/OUT
+                      </button>
                     </div>
                   </td>
                 </tr>
