@@ -9,7 +9,6 @@ import {
   LuArmchair,
   LuCar,
   LuCoffee,
-  LuBarChart3,
   LuSettings,
 } from "react-icons/lu";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,7 +18,7 @@ const navItems = [
   { name: "Dashboard", href: "/", icon: LuLayoutDashboard },
   { name: "Inventory", href: "/inventory", icon: LuBoxes },
   { name: "Sales", href: "/sales", icon: LuArmchair },
-  { name: "Reports", href: "/reports", icon: LuBarChart3 },
+  { name: "Reports", href: "/reports", icon: LuBoxes },
   { name: "Carwash Services", href: "/carwash-services", icon: LuCar },
   { name: "Coffee POS", href: "/coffee-pos", icon: LuCoffee, isPos: true },
   { name: "Carwash POS", href: "/carwash-pos", icon: LuCar, isPos: true },
