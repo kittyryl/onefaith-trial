@@ -50,10 +50,11 @@ export default function SidebarNav() {
       {/* Sidebar footer with logged in user info */}
       {user && (
         <div className="px-4 pb-4 border-t border-stone-800 pt-4">
-          <div className="text-gray-400 text-sm px-3">
-            Logged in as: <span className="text-white">{user.fullName}</span>
-            <br />
-            <span className="text-amber-600">({user.role})</span>
+          <div className="px-3 py-2 rounded-lg bg-stone-800">
+            <div className="text-white font-medium text-sm">{user.fullName}</div>
+            <div className="text-amber-500 text-xs uppercase tracking-wide font-semibold mt-0.5">
+              {user.role}
+            </div>
           </div>
         </div>
       )}
