@@ -934,7 +934,7 @@ function Inventory() {
           <tbody className="bg-white divide-y divide-gray-200">
             {dataToDisplay.map((ingredient) => {
               const isLow =
-                ingredient.current_stock <= ingredient.required_stock;
+                ingredient.current_stock < ingredient.required_stock;
               return (
                 <tr key={ingredient.id} className="hover:bg-gray-50/80">
                   <td className="w-48 px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 truncate">
