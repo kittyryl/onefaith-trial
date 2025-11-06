@@ -479,6 +479,7 @@ function CarwashPOS() {
       if (!currentOrderId || cart.length === 0) return;
 
       const serviceItems = cart.map((it) => ({
+        serviceId: it.serviceId, // Include catalog service ID for linking
         service_name: it.serviceName,
         vehicle: it.vehicle,
         price: it.price,
