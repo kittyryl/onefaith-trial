@@ -780,19 +780,35 @@ function Inventory() {
   }, []);
   /* eslint-enable react-hooks/exhaustive-deps */
 
-  // Helper: pluralize unit based on quantity (expects singular units in data)
+  // Normalize unit variants to a canonical singular form for display logic
+  const normalizeUnit = (unit?: string) => {
+    if (!unit) return undefined;
+    const u = unit.trim().toLowerCase();
+    if (["piece", "pieces", "pc", "pcs"].includes(u)) return "Piece";
+    if (["bottle", "bottles"].includes(u)) return "Bottle";
+    return unit; // keep original if unknown
+  };
+
+  // Helper: pluralize unit based on quantity, robust to legacy plural values
   const pluralizeUnit = (unit: string | undefined, qty: number) => {
     if (!unit) return "";
     const abs = Math.abs(qty);
     const isOne = abs === 1;
-    switch (unit) {
+    const norm = normalizeUnit(unit);
+    switch (norm) {
       case "Bottle":
         return isOne ? "Bottle" : "Bottles";
       case "Piece":
         return isOne ? "Piece" : "Pieces";
-      default:
-        // Fallback: naive pluralization
-        return isOne ? unit : `${unit}s`;
+      default: {
+        const endsWithS = unit.toLowerCase().endsWith("s");
+        if (isOne) {
+          // convert plural to singular if trivially pluralized, else keep
+          return endsWithS ? unit.slice(0, -1) : unit;
+        }
+        // quantity != 1 → ensure plural but avoid double 's'
+        return endsWithS ? unit : `${unit}s`;
+      }
     }
   };
 
