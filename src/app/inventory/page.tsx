@@ -549,7 +549,7 @@ function StockMovementModal({
 function Inventory() {
   const { isManager } = useAuth();
   const [activeTab, setActiveTab] = useState<"ingredients" | "products">(
-    "products"
+    "ingredients"
   );
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -1383,9 +1383,14 @@ function Inventory() {
 
       {/* Table Content based on Tab */}
       <div className="max-w-7xl mx-auto">
-        {activeTab === "ingredients"
-          ? renderIngredientTable()
-          : renderProductTable()}
+        {activeTab === "ingredients" ? (
+          renderIngredientTable()
+        ) : (
+          <div className="bg-white rounded-xl border border-amber-200 p-6 text-amber-900">
+            <p className="font-semibold mb-2">POS Products have moved</p>
+            <p className="text-sm">Manage Coffee POS products under Settings → Coffee Products.</p>
+          </div>
+        )}
       </div>
     </div>
   );
