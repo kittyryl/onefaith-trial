@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Image from "next/image";
 import {
   LuPencilLine,
   LuTrash2,
@@ -214,6 +213,10 @@ function ItemFormModal({
           }/api/upload`,
           {
             method: "POST",
+            headers: {
+              // Important: don't set Content-Type for FormData; the browser will set the boundary.
+              ...getAuthHeaders(),
+            },
             body: fileFormData,
           }
         );
@@ -1072,124 +1075,7 @@ function Inventory() {
     );
   };
 
-  const renderProductTable = () => {
-    const dataToDisplay = filteredAndSortedProducts();
-
-    const SortableHeader = ({
-      column,
-      label,
-      className = "",
-    }: {
-      column: string;
-      label: string;
-      className?: string;
-    }) => (
-      <th
-        className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none ${className}`}
-        onClick={() => handleSort(column)}
-      >
-        <div className="flex items-center space-x-1">
-          <span>{label}</span>
-          <LuArrowUpDown
-            size={14}
-            className={
-              sortColumn === column ? "text-amber-600" : "text-gray-400"
-            }
-          />
-        </div>
-      </th>
-    );
-
-    return (
-      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              {/* UPDATED: Added Image header */}
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Image
-              </th>
-              <SortableHeader column="name" label="Product Name" />
-              <SortableHeader column="category" label="Category" />
-              <SortableHeader column="price" label="Price (₱)" />
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Hot/Cold
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {dataToDisplay.map((product) => (
-              <tr key={product.id} className="hover:bg-gray-50/80">
-                {/* UPDATED: Added Image cell */}
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <Image
-                    src={
-                      product.image_url && product.image_url.trim() !== ""
-                        ? product.image_url
-                        : "/images/placeholder.svg"
-                    }
-                    alt={product.name}
-                    width={40}
-                    height={40}
-                    className="w-10 h-10 rounded-md object-cover ring-1 ring-gray-200"
-                  />
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {product.name}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {product.category}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 tabular-nums font-semibold">
-                  {Number(product.price).toLocaleString("en-PH", {
-                    style: "currency",
-                    currency: "PHP",
-                  })}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  <span
-                    className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      product.needs_temp
-                        ? "bg-orange-100 text-orange-800"
-                        : "bg-gray-100 text-gray-500"
-                    }`}
-                  >
-                    {product.needs_temp ? "Yes" : "No"}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <button
-                    onClick={() => openEditForm(product)}
-                    className="text-amber-600 hover:text-amber-900 cursor-pointer mr-2"
-                  >
-                    <LuPencilLine size={18} />
-                  </button>
-                  {isManager() && (
-                    <button
-                      onClick={() => openDeleteConfirmation(product)}
-                      className="text-red-600 hover:text-red-900 cursor-pointer"
-                    >
-                      <LuTrash2 size={18} />
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {dataToDisplay.length === 0 && !loading && (
-          <p className="text-center py-10 text-gray-500">
-            {searchQuery
-              ? "No products match your search."
-              : "No POS products found. Add items to your Coffee menu."}
-          </p>
-        )}
-      </div>
-    );
-  };
+  // renderProductTable removed (POS products are now managed in Settings)
 
   return (
     <div className="min-h-screen bg-linear-to-br from-amber-50 via-white to-rose-50 p-4 sm:p-6 lg:p-8">

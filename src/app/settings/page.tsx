@@ -1586,6 +1586,10 @@ function ProductModal({ product, onClose, onSave }: ProductModalProps) {
 
         const uploadRes = await fetch(`${API_BASE}/api/upload`, {
           method: "POST",
+          headers: {
+            // Do not set Content-Type for FormData; browser sets it with boundary automatically
+            ...getAuthHeaders(),
+          },
           body: formData,
         });
 
