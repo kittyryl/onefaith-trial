@@ -3,16 +3,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LuLayoutDashboard,
-  LuBoxes,
-  LuArmchair,
-  LuCar,
-  LuCoffee,
-  LuSettings,
-  LuLogOut,
-} from "react-icons/lu";
-import { useAuth } from "@/contexts/AuthContext";
+import { LuLayoutDashboard, LuBoxes, LuArmchair, LuCar, LuCoffee, LuSettings } from "react-icons/lu";
 
 // Nav items
 const navItems = [
@@ -27,7 +18,7 @@ const navItems = [
 
 export default function SidebarNav() {
   const pathname = usePathname();
-  const { logout, user } = useAuth();
+  // User/logout moved to top header
 
   return (
     <nav className="flex flex-col h-full">
@@ -55,23 +46,7 @@ export default function SidebarNav() {
         })}
       </div>
 
-      {/* Logout section */}
-      {user && (
-        <div className="px-4 pb-4 border-t border-stone-800 pt-4">
-          <div className="text-gray-400 text-sm mb-2 px-3">
-            Logged in as: <span className="text-white">{user.fullName}</span>
-            <br />
-            <span className="text-amber-600">({user.role})</span>
-          </div>
-          <button
-            onClick={logout}
-            className="flex items-center gap-3 p-3 rounded-lg transition-colors w-full hover:bg-red-900 hover:text-white text-gray-300"
-          >
-            <LuLogOut size={20} />
-            <span>Logout</span>
-          </button>
-        </div>
-      )}
+      {/* User section moved to top header; removed from sidebar to reduce clutter */}
     </nav>
   );
 }
