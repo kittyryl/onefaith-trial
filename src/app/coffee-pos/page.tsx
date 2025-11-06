@@ -324,7 +324,8 @@ function CoffeePOS() {
   const [completedOrder, setCompletedOrder] = useState<OrderDetails | null>(
     null
   );
-  const [isSubmittingPayment, setIsSubmittingPayment] = useState<boolean>(false);
+  const [isSubmittingPayment, setIsSubmittingPayment] =
+    useState<boolean>(false);
 
   // Fetch products
   useEffect(() => {

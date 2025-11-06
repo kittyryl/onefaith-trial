@@ -3,7 +3,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LuLayoutDashboard, LuBoxes, LuArmchair, LuCar, LuCoffee, LuSettings } from "react-icons/lu";
+import {
+  LuLayoutDashboard,
+  LuBoxes,
+  LuArmchair,
+  LuCar,
+  LuCoffee,
+  LuSettings,
+} from "react-icons/lu";
 import { useAuth } from "@/contexts/AuthContext";
 
 // Nav items
@@ -51,7 +58,9 @@ export default function SidebarNav() {
       {user && (
         <div className="px-4 pb-4 border-t border-stone-800 pt-4">
           <div className="px-3 py-2 rounded-lg bg-stone-800">
-            <div className="text-white font-medium text-sm">{user.fullName}</div>
+            <div className="text-white font-medium text-sm">
+              {user.fullName}
+            </div>
             <div className="text-amber-500 text-xs uppercase tracking-wide font-semibold mt-0.5">
               {user.role}
             </div>

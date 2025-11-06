@@ -544,6 +544,30 @@ function CarwashPOS() {
     }
   };
 
+  // Link a carwash service ticket (text order_id) to the numeric DB order id
+  const linkTicketToOrder = useCallback(
+    async (ticketId: string, dbOrderId: number) => {
+      try {
+        await fetch(
+          `${API_BASE}/api/carwash/services/${encodeURIComponent(
+            ticketId
+          )}/link-order`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              ...getAuthHeaders(),
+            },
+            body: JSON.stringify({ order_id: dbOrderId }),
+          }
+        );
+      } catch (e) {
+        console.error("Failed to link carwash ticket to order:", e);
+      }
+    },
+    []
+  );
+
   // Payment flow
   const handleProceedToPayment = () => {
     if (cart.length === 0) {
@@ -595,6 +619,13 @@ function CarwashPOS() {
         if (submissionResult) {
           // Create carwash service ticket after successful payment
           await upsertCarwashServiceTicket("queue");
+          // Link the ticket to the DB order id (optional linkage)
+          try {
+            await linkTicketToOrder(
+              baseOrder.orderId,
+              Number(submissionResult.orderId)
+            );
+          } catch {}
           setCompletedOrder(baseOrder);
           setIsReceiptModalOpen(true);
         }
@@ -630,6 +661,13 @@ function CarwashPOS() {
       if (submissionResult) {
         // Create carwash service ticket after successful cash payment
         await upsertCarwashServiceTicket("queue");
+        // Link the ticket to the DB order id
+        try {
+          await linkTicketToOrder(
+            orderDetails.orderId,
+            Number(submissionResult.orderId)
+          );
+        } catch {}
         setCompletedOrder(orderDetails);
         setIsPaymentModalOpen(false);
         setIsReceiptModalOpen(true);

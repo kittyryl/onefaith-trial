@@ -43,9 +43,9 @@ interface Shift {
 }
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<"accounts" | "shifts" | "carwash" | "products">(
-    "accounts"
-  );
+  const [activeTab, setActiveTab] = useState<
+    "accounts" | "shifts" | "carwash" | "products"
+  >("accounts");
   const { logout } = useAuth();
 
   return (
@@ -1334,7 +1334,6 @@ function PriceModal({ serviceId, price, onClose, onSave }: PriceModalProps) {
   );
 }
 
-
 // ===== COFFEE PRODUCTS MANAGEMENT =====
 
 interface Product {
@@ -1362,7 +1361,7 @@ function CoffeeProducts() {
       });
       if (!res.ok) throw new Error("Failed to fetch products");
       const data: Product[] = await res.json();
-      setProducts(data.map(p => ({ ...p, price: Number(p.price) })));
+      setProducts(data.map((p) => ({ ...p, price: Number(p.price) })));
     } catch (err) {
       console.error(err);
       toast.error("Could not load coffee products");
@@ -1405,12 +1404,18 @@ function CoffeeProducts() {
   };
 
   const filteredProducts = products.filter((product) => {
-    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === "All" || product.category === selectedCategory;
+    const matchesSearch = product.name
+      .toLowerCase()
+      .includes(searchQuery.toLowerCase());
+    const matchesCategory =
+      selectedCategory === "All" || product.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
-  const categories = ["All", ...Array.from(new Set(products.map((p) => p.category)))];
+  const categories = [
+    "All",
+    ...Array.from(new Set(products.map((p) => p.category))),
+  ];
 
   if (loading) return <PageLoader />;
 
@@ -1625,7 +1630,9 @@ function ProductModal({ product, onClose, onSave }: ProductModalProps) {
       onClose();
     } catch (err) {
       console.error(err);
-      toast.error(err instanceof Error ? err.message : "Could not save product");
+      toast.error(
+        err instanceof Error ? err.message : "Could not save product"
+      );
     } finally {
       setSaving(false);
     }
@@ -1713,7 +1720,10 @@ function ProductModal({ product, onClose, onSave }: ProductModalProps) {
               id="needs-temp-product"
               className="h-4 w-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
             />
-            <label htmlFor="needs-temp-product" className="ml-2 block text-sm text-gray-900">
+            <label
+              htmlFor="needs-temp-product"
+              className="ml-2 block text-sm text-gray-900"
+            >
               Requires Hot/Cold Option?
             </label>
           </div>

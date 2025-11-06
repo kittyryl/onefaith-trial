@@ -140,7 +140,12 @@ function ItemFormModal({
   const [name, setName] = useState<string>(initialData?.name || "");
   const [category, setCategory] = useState<string>(initialData?.category || "");
   const [unitOfMeasure, setUnitOfMeasure] = useState<string>(() => {
-    if (isEdit && isIngredient && initialData && "unit_of_measure" in initialData) {
+    if (
+      isEdit &&
+      isIngredient &&
+      initialData &&
+      "unit_of_measure" in initialData
+    ) {
       const ing = initialData as Ingredient;
       return normalizeUnitSingular(ing.unit_of_measure || "");
     }
@@ -332,7 +337,9 @@ function ItemFormModal({
                     <option value="Bottle">Bottle</option>
                     <option value="Piece">Piece</option>
                   </select>
-                  <p className="mt-1 text-xs text-gray-500">Allowed units: Bottle or Pieces</p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Allowed units: Bottle or Pieces
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
@@ -472,8 +479,8 @@ function StockMovementModal({
   return (
     <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
       <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
-  <h2 className="text-2xl font-bold mb-4">Record Stock Movement</h2>
-  <h3 className="text-xl text-amber-800 mb-6">Item: {ingredient.name}</h3>
+        <h2 className="text-2xl font-bold mb-4">Record Stock Movement</h2>
+        <h3 className="text-xl text-amber-800 mb-6">Item: {ingredient.name}</h3>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
@@ -1125,9 +1132,7 @@ function Inventory() {
       </div>
 
       {/* Table Content */}
-      <div className="max-w-7xl mx-auto">
-        {renderIngredientTable()}
-      </div>
+      <div className="max-w-7xl mx-auto">{renderIngredientTable()}</div>
     </div>
   );
 }
