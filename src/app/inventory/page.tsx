@@ -901,12 +901,12 @@ function Inventory() {
               <SortableHeader
                 column="required_stock"
                 label="Required"
-                className="w-24"
+                className="w-24 text-right"
               />
               <SortableHeader
                 column="current_stock"
                 label="Current Stock"
-                className="w-32"
+                className="w-32 text-right"
               />
               <th className="w-36 px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Actions
@@ -928,11 +928,11 @@ function Inventory() {
                   <td className="w-28 px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {ingredient.unit_of_measure || "N/A"}
                   </td>
-                  <td className="w-24 px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                  <td className="w-24 px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-right">
                     {ingredient.required_stock}
                   </td>
-                  <td className="w-32 px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
-                    <div className="flex items-center gap-2">
+                  <td className="w-32 px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold text-right">
+                    <div className="flex items-center gap-2 justify-end">
                       <span
                         className={`px-2 py-1 inline-flex justify-center min-w-12 text-xs leading-5 font-semibold rounded-lg ${
                           isLow
