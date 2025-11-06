@@ -929,7 +929,7 @@ function Inventory() {
                     {ingredient.unit_of_measure || "N/A"}
                   </td>
                   <td className="w-24 px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-right">
-                    {ingredient.required_stock}
+                    {Number(ingredient.required_stock).toLocaleString()}
                   </td>
                   <td className="w-32 px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold text-right">
                     <div className="flex items-center gap-2 justify-end">
@@ -940,7 +940,7 @@ function Inventory() {
                             : "bg-emerald-100 text-emerald-800"
                         }`}
                       >
-                        {ingredient.current_stock}
+                        {Number(ingredient.current_stock).toLocaleString()}
                       </span>
                     </div>
                   </td>
