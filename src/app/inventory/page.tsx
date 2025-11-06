@@ -311,13 +311,17 @@ function ItemFormModal({
                   <label className="block text-sm font-medium text-gray-700">
                     Unit of Measure
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={unitOfMeasure}
                     onChange={(e) => setUnitOfMeasure(e.target.value)}
                     className="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border"
-                    placeholder="e.g., Bottle, mL"
-                  />
+                    required
+                  >
+                    <option value="">Select unit</option>
+                    <option value="Bottle">Bottle</option>
+                    <option value="Pieces">Pieces</option>
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">Allowed units: Bottle or Pieces</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
