@@ -544,9 +544,9 @@ function CarwashPOS() {
     }
   };
 
-  // Link a carwash service ticket (text order_id) to the numeric DB order id
+  // Link a carwash service ticket (text order_id) to the DB order id (UUID)
   const linkTicketToOrder = useCallback(
-    async (ticketId: string, dbOrderId: number) => {
+    async (ticketId: string, dbOrderId: string) => {
       try {
         await fetch(
           `${API_BASE}/api/carwash/services/${encodeURIComponent(
@@ -623,7 +623,7 @@ function CarwashPOS() {
           try {
             await linkTicketToOrder(
               baseOrder.orderId,
-              Number(submissionResult.orderId)
+              submissionResult.orderId
             );
           } catch {}
           setCompletedOrder(baseOrder);
@@ -665,7 +665,7 @@ function CarwashPOS() {
         try {
           await linkTicketToOrder(
             orderDetails.orderId,
-            Number(submissionResult.orderId)
+            submissionResult.orderId
           );
         } catch {}
         setCompletedOrder(orderDetails);
