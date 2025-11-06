@@ -452,8 +452,12 @@ function CoffeePOS() {
 
   // Submit order
   const submitOrderToAPI = async (orderDetails: OrderDetails) => {
+    // Map frontend field names to backend expectations
     const payload = {
-      orderDetails: orderDetails,
+      orderDetails: {
+        ...orderDetails,
+        order_type: orderDetails.type, // Backend expects order_type, not type
+      },
       businessUnit: "Coffee",
     };
     try {
