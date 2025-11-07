@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import SidebarNav from "./SidebarNav";
 import { LuMenu, LuX } from "react-icons/lu";
 
@@ -36,8 +37,15 @@ export default function AppShell({ children }: AppShellProps) {
         // Important: avoid reading window during render to prevent SSR hydration mismatches
         aria-hidden={!open}
       >
-        <div className="p-6 text-2xl font-bold border-b border-stone-800">
-          OneFaith
+        <div className="px-4 py-3 border-b border-stone-800 flex items-center justify-center h-20">
+          <Image
+            src="/images/logo.png"
+            alt="OneFaith Logo"
+            width={200}
+            height={100}
+            priority
+            className="object-contain object-center w-auto mt-5"
+          />
         </div>
         {/* Nav area with all items including Settings */}
         <div className="flex-1 overflow-y-auto">
@@ -67,9 +75,7 @@ export default function AppShell({ children }: AppShellProps) {
       </header>
 
       {/* Main content: add left padding on lg to account for fixed sidebar */}
-      <main className="xl:pl-64 min-h-screen">
-        {children}
-      </main>
+      <main className="xl:pl-64 min-h-screen">{children}</main>
     </div>
   );
 }

@@ -1,1 +1,124 @@
 @import "tailwindcss";
+
+/* Print Styles for 58mm Thermal Printer */
+@media print {
+  /* Hide everything except the receipt */
+  body * {
+    visibility: hidden;
+  }
+  
+  #receipt-content,
+  #receipt-content * {
+    visibility: visible;
+  }
+  
+  #receipt-content {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 58mm !important;
+    max-width: 58mm !important;
+    padding: 3mm !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    font-size: 9pt !important;
+    line-height: 1.2 !important;
+    text-align: center !important;
+  }
+  
+  /* Hide buttons and backdrop in print */
+  .no-print {
+    display: none !important;
+  }
+  
+  /* Remove backdrop blur */
+  .backdrop-blur-sm {
+    backdrop-filter: none !important;
+    background: transparent !important;
+  }
+  
+  /* Thermal printer page setup */
+  @page {
+    size: 58mm auto;
+    margin: 0;
+  }
+  
+  /* Remove max-height constraint for items list in print */
+  .max-h-60 {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  
+  /* Adjust text sizes for thermal printer */
+  #receipt-content h2 {
+    font-size: 12pt !important;
+    margin: 1mm 0 !important;
+    font-weight: bold !important;
+  }
+  
+  #receipt-content p,
+  #receipt-content span,
+  #receipt-content div {
+    font-size: 9pt !important;
+  }
+  
+  /* Reduce padding and margins for thermal printer */
+  #receipt-content > div {
+    padding: 0.5mm !important;
+    margin: 0.5mm 0 !important;
+  }
+  
+  /* Optimize spacing */
+  .space-y-1 > * + *,
+  .space-y-2 > * + * {
+    margin-top: 0.5mm !important;
+  }
+  
+  .mb-4, .mb-6 {
+    margin-bottom: 1mm !important;
+  }
+  
+  .mt-1, .mt-2, .mt-4 {
+    margin-top: 1mm !important;
+  }
+  
+  .pt-2, .pt-3 {
+    padding-top: 1mm !important;
+  }
+  
+  .pb-2, .pb-3 {
+    padding-bottom: 1mm !important;
+  }
+  
+  .py-4 {
+    padding-top: 1mm !important;
+    padding-bottom: 1mm !important;
+  }
+  
+  /* Center align all flex items */
+  .flex {
+    justify-content: space-between !important;
+    text-align: left !important;
+  }
+  
+  /* Hide or minimize icons for thermal printer */
+  svg {
+    display: none !important;
+  }
+  
+  /* Ensure single page printing */
+  #receipt-content {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}
+
+/* Touch-friendly sizing for small chip buttons on tablets/phones */
+@media (pointer: coarse) and (hover: none) {
+  .btn-chip {
+    padding: 0.5rem 0.75rem !important; /* ~8px vertical, 12px horizontal */
+    font-size: 0.875rem !important; /* text-sm for readability on touch */
+    min-height: 2.25rem; /* ~36px tap target */
+  }
+}

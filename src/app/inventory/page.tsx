@@ -212,6 +212,22 @@ function ItemFormModal({
       return;
     }
 
+    // Validate name length
+    if (name.trim().length > 100) {
+      toast.error("Name must be 100 characters or less.");
+      return;
+    }
+
+    // Validate required stock is non-negative
+    if (
+      isIngredient &&
+      requiredStock !== undefined &&
+      parseFloat(requiredStock) < 0
+    ) {
+      toast.error("Required stock must be a positive number.");
+      return;
+    }
+
     setUploading(true);
     let finalImageUrl = imageUrl;
 
@@ -297,9 +313,13 @@ function ItemFormModal({
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                maxLength={100}
                 className="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border"
                 required
               />
+              <p className="mt-1 text-xs text-gray-500">
+                Maximum 100 characters
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">
@@ -464,10 +484,27 @@ function StockMovementModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const numQuantity = parseFloat(quantity);
-    if (isNaN(numQuantity) || numQuantity <= 0) {
-      toast.error("Quantity must be a positive number.");
+
+    // Validate quantity based on movement type
+    if (movementType === "AUDIT") {
+      if (isNaN(numQuantity) || numQuantity < 0) {
+        toast.error("AUDIT quantity must be zero or positive.");
+        return;
+      }
+    } else {
+      // IN or OUT
+      if (isNaN(numQuantity) || numQuantity <= 0) {
+        toast.error("Quantity for IN/OUT must be greater than zero.");
+        return;
+      }
+    }
+
+    // Validate notes length
+    if (notes.length > 500) {
+      toast.error("Notes must be 500 characters or less.");
       return;
     }
+
     await onRecordMovement({
       quantity: numQuantity,
       movement_type: movementType,
@@ -543,8 +580,12 @@ function StockMovementModal({
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
+                maxLength={500}
                 className="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border"
               />
+              <p className="text-xs text-gray-500 mt-1">
+                {notes.length}/500 characters
+              </p>
             </div>
           </div>
           <div className="mt-6 flex justify-end space-x-3">
@@ -619,7 +660,7 @@ function Inventory() {
       ingredient.unit_of_measure || "N/A",
       ingredient.required_stock,
       ingredient.current_stock,
-      ingredient.current_stock <= ingredient.required_stock
+      Number(ingredient.current_stock) < Number(ingredient.required_stock)
         ? "Low Stock"
         : "OK",
     ]);
@@ -823,8 +864,9 @@ function Inventory() {
     }
 
     if (showLowStockOnly) {
+      // Treat strictly less than required as low; equal should be OK
       filtered = filtered.filter(
-        (ing) => ing.current_stock <= ing.required_stock
+        (ing) => Number(ing.current_stock) < Number(ing.required_stock)
       );
     }
 
@@ -843,12 +885,12 @@ function Inventory() {
             bVal = b.category.toLowerCase();
             break;
           case "current_stock":
-            aVal = a.current_stock;
-            bVal = b.current_stock;
+            aVal = Number(a.current_stock);
+            bVal = Number(b.current_stock);
             break;
           case "required_stock":
-            aVal = a.required_stock;
-            bVal = b.required_stock;
+            aVal = Number(a.required_stock);
+            bVal = Number(b.required_stock);
             break;
           default:
             return 0;
@@ -934,7 +976,8 @@ function Inventory() {
           <tbody className="bg-white divide-y divide-gray-200">
             {dataToDisplay.map((ingredient) => {
               const isLow =
-                ingredient.current_stock < ingredient.required_stock;
+                Number(ingredient.current_stock) <
+                Number(ingredient.required_stock);
               return (
                 <tr key={ingredient.id} className="hover:bg-gray-50/80">
                   <td className="w-48 px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 truncate">

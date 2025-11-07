@@ -1,12 +1,16 @@
 "use client";
 
 import { useCallback, useState, useEffect } from "react";
-import { LuCar, LuX, LuTrash2, LuPrinter } from "react-icons/lu";
+import { LuCar, LuX, LuTrash2, LuPrinter, LuEye } from "react-icons/lu";
 import { toast } from "react-toastify";
 import { v4 as uuidv4 } from "uuid";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { getAuthHeaders } from "@/lib/auth";
 import PageLoader from "@/components/PageLoader";
+import { printElementById } from "@/utils/print";
+import { generateCarwashReceipt } from "@/utils/escpos";
+import { printWithRawBT, canUseRawBT } from "@/utils/rawbt";
+import ESCPOSPreview from "@/components/ESCPOSPreview";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
 
@@ -106,6 +110,7 @@ interface CustomerDetailsModalProps {
   initialName: string;
   initialPhone: string;
   initialPlate: string;
+  isSubmitting?: boolean;
 }
 
 function CustomerDetailsModal({
@@ -114,13 +119,75 @@ function CustomerDetailsModal({
   initialName,
   initialPhone,
   initialPlate,
+  isSubmitting = false,
 }: CustomerDetailsModalProps) {
   const [name, setName] = useState(initialName);
   const [phone, setPhone] = useState(initialPhone);
   const [plate, setPlate] = useState(initialPlate);
+  const [errors, setErrors] = useState({ name: "", phone: "", plate: "" });
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // Allow letters, spaces, periods, hyphens, and apostrophes
+    if (/^[a-zA-Z\s.\-']*$/.test(value) || value === "") {
+      setName(value);
+      setErrors((prev) => ({ ...prev, name: "" }));
+    } else {
+      setErrors((prev) => ({ ...prev, name: "Name can only contain letters" }));
+    }
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // Allow only numbers, +, and limit to 13 characters (+639XXXXXXXXX)
+    if (/^[\d+]*$/.test(value) && value.length <= 13) {
+      setPhone(value);
+      setErrors((prev) => ({ ...prev, phone: "" }));
+    } else {
+      setErrors((prev) => ({
+        ...prev,
+        phone: "Phone can only contain numbers",
+      }));
+    }
+  };
+
+  const handlePlateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.toUpperCase();
+    // Allow alphanumeric and hyphens, max 20 characters
+    if (/^[A-Z0-9\-]*$/.test(value) && value.length <= 20) {
+      setPlate(value);
+      setErrors((prev) => ({ ...prev, plate: "" }));
+    } else {
+      setErrors((prev) => ({
+        ...prev,
+        plate: "Plate can only contain letters and numbers",
+      }));
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate name length
+    if (name.trim().length > 100) {
+      setErrors((prev) => ({
+        ...prev,
+        name: "Name must be 100 characters or less",
+      }));
+      return;
+    }
+
+    // Validate phone format
+    const phoneRegex = /^(\+639|09)\d{9}$/;
+    const cleanPhone = phone.replace(/[\s\-()]/g, "");
+    if (!phoneRegex.test(cleanPhone)) {
+      setErrors((prev) => ({
+        ...prev,
+        phone: "Phone must be in format: +639XXXXXXXXX or 09XXXXXXXXX",
+      }));
+      return;
+    }
+
     onSubmit({ customerName: name, customerPhone: phone, plateNumber: plate });
   };
 
@@ -133,7 +200,8 @@ function CustomerDetailsModal({
             <button
               type="button"
               onClick={onClose}
-              className="text-gray-500 hover:text-gray-800"
+              disabled={isSubmitting}
+              className="text-gray-500 hover:text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <LuX size={24} />
             </button>
@@ -145,11 +213,15 @@ function CustomerDetailsModal({
               </label>
               <input
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={handleNameChange}
                 placeholder="e.g. Juan Dela Cruz"
                 required
+                maxLength={100}
                 className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
+              {errors.name && (
+                <p className="text-red-500 text-sm mt-1">{errors.name}</p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -157,11 +229,14 @@ function CustomerDetailsModal({
               </label>
               <input
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="e.g. 09XXXXXXXXX"
+                onChange={handlePhoneChange}
+                placeholder="e.g. 09XXXXXXXXX or +639XXXXXXXXX"
                 required
                 className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
+              {errors.phone && (
+                <p className="text-red-500 text-sm mt-1">{errors.phone}</p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -169,18 +244,23 @@ function CustomerDetailsModal({
               </label>
               <input
                 value={plate}
-                onChange={(e) => setPlate(e.target.value.toUpperCase())}
+                onChange={handlePlateChange}
                 placeholder="e.g. ABC1234"
                 required
+                maxLength={20}
                 className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 uppercase"
               />
+              {errors.plate && (
+                <p className="text-red-500 text-sm mt-1">{errors.plate}</p>
+              )}
             </div>
           </div>
           <button
             type="submit"
-            className="w-full bg-amber-600 hover:bg-amber-700 text-white p-3 rounded-lg font-bold text-lg cursor-pointer transition-colors"
+            disabled={isSubmitting}
+            className="w-full bg-amber-700 hover:bg-amber-800 text-white p-3 rounded-lg font-bold text-lg cursor-pointer transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            Continue to Payment
+            {isSubmitting ? "Processing..." : "Continue to Payment"}
           </button>
         </form>
       </div>
@@ -303,72 +383,218 @@ interface ReceiptModalProps {
 }
 
 function ReceiptModal({ order, onClose }: ReceiptModalProps) {
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewBytes, setPreviewBytes] = useState<Uint8Array | null>(null);
+
+  const handlePrintBrowser = () => {
+    // Print only the receipt content using an isolated iframe to avoid printing overlays/backdrop
+    printElementById("receipt-content", {
+      title: "ONEFAITH CARWASH Receipt",
+      pageWidthMm: 58,
+    });
+  };
+
+  const handlePrintESCPOS = async () => {
+    // Build ESC/POS receipt data
+    const escposData = generateCarwashReceipt({
+      orderId: order.orderId,
+      items: order.items.map((item) => ({
+        serviceName: item.serviceName,
+        vehicle: item.vehicle,
+        quantity: item.quantity,
+        price: item.price,
+      })),
+      subtotal: order.subtotal,
+      total: order.total,
+      paymentMethod: order.payment,
+      cashReceived: order.cashTendered ?? undefined,
+      change: order.changeDue ?? undefined,
+      timestamp: new Date().toLocaleString("en-US", {
+        month: "short",
+        day: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      }),
+    });
+
+    // Try RawBT
+    const success = await printWithRawBT(
+      escposData,
+      () => {
+        toast.success("Sending to thermal printer...");
+      },
+      (error) => {
+        toast.error(
+          "RawBT not available. Install RawBT app or use Browser Print."
+        );
+        console.error("[ESC/POS]", error);
+      }
+    );
+
+    if (!success) {
+      // Fallback to browser print
+      handlePrintBrowser();
+    }
+  };
+
+  const handlePreviewESCPOS = () => {
+    // Build ESC/POS receipt data
+    const escposData = generateCarwashReceipt({
+      orderId: order.orderId,
+      items: order.items.map((item) => ({
+        serviceName: item.serviceName,
+        vehicle: item.vehicle,
+        quantity: item.quantity,
+        price: item.price,
+      })),
+      subtotal: order.subtotal,
+      total: order.total,
+      paymentMethod: order.payment,
+      cashReceived: order.cashTendered ?? undefined,
+      change: order.changeDue ?? undefined,
+      timestamp: new Date().toLocaleString("en-US", {
+        month: "short",
+        day: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      }),
+    });
+
+    setPreviewBytes(escposData);
+    setShowPreview(true);
+  };
+
+  const currentDate = new Date().toLocaleString("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+
   return (
     <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
-      <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+      <div
+        className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md"
+        id="receipt-content"
+      >
         <div className="text-center mb-6">
           <LuPrinter size={48} className="mx-auto text-gray-700" />
-          <h2 className="text-2xl font-bold mt-4">Order Confirmed</h2>
-          <p className="text-gray-500 text-sm">Order ID: {order.orderId}</p>
+          <h2 className="text-2xl font-bold mt-4">ONEFAITH CARWASH</h2>
+          <p className="text-gray-600 text-xs mt-1">Service Receipt</p>
+          <div className="text-xs text-gray-500 mt-2">
+            <div>{currentDate}</div>
+            <div className="font-semibold mt-1">Order: {order.orderId}</div>
+          </div>
         </div>
-        <div className="max-h-60 overflow-y-auto space-y-2 mb-4 border-t border-b py-4 border-dashed">
+        <div className="max-h-60 overflow-y-auto space-y-2 mb-4 border-t-2 border-b-2 py-4 border-dashed border-gray-400">
           {order.items.map((item) => (
-            <div key={item.cartId} className="flex justify-between">
-              <div>
-                <span className="font-semibold">{item.serviceName}</span>
-                <span className="text-gray-500 text-sm"> ({item.vehicle})</span>
-                <span className="block text-gray-500 text-sm">
-                  {item.quantity} x P{item.price.toFixed(2)}
+            <div key={item.cartId} className="text-sm">
+              <div className="flex justify-between font-semibold">
+                <span>{item.serviceName}</span>
+                <span>P{(item.price * item.quantity).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-gray-600 text-xs pl-2">
+                <span>
+                  ({item.vehicle}) {item.quantity} x P{item.price.toFixed(2)}
                 </span>
               </div>
-              <span className="font-semibold">
-                P{(item.price * item.quantity).toFixed(2)}
-              </span>
             </div>
           ))}
         </div>
-        <div className="space-y-2 mb-6">
+        <div className="space-y-1 mb-4 text-sm">
           <div className="flex justify-between">
-            <span className="text-gray-600">Subtotal</span>
-            <span className="font-medium">P{order.subtotal.toFixed(2)}</span>
+            <span>Subtotal:</span>
+            <span>P{order.subtotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-600">Discount</span>
-            <span className="font-medium text-red-500">
-              - P{order.discount.toFixed(2)}
-            </span>
+            <span>Discount:</span>
+            <span className="text-red-600">-P{order.discount.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between text-lg font-bold">
-            <span>Total Due</span>
+          <div className="flex justify-between text-lg font-bold border-t-2 border-dashed border-gray-400 pt-2 mt-2">
+            <span>TOTAL:</span>
             <span>P{order.total.toFixed(2)}</span>
           </div>
 
           {order.payment === "Cash" && (
-            <div className="border-t border-dashed pt-2 mt-2">
+            <div className="border-t border-dashed border-gray-300 pt-2 mt-2 space-y-1">
               <div className="flex justify-between">
-                <span className="text-gray-600">Cash Tendered</span>
-                <span className="font-medium">
-                  P{order.cashTendered?.toFixed(2)}
-                </span>
+                <span>Cash:</span>
+                <span>P{order.cashTendered?.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-lg font-bold">
-                <span>Change Due</span>
+              <div className="flex justify-between font-bold">
+                <span>Change:</span>
                 <span>P{order.changeDue?.toFixed(2)}</span>
               </div>
             </div>
           )}
-          <div className="flex justify-between text-sm mt-4">
-            <span className="text-gray-600">Payment</span>
+        </div>
+        <div className="text-xs text-gray-600 space-y-1 border-t border-gray-300 pt-3">
+          <div className="flex justify-between">
+            <span>Payment:</span>
             <span className="font-medium">{order.payment}</span>
           </div>
         </div>
-        <button
-          onClick={onClose}
-          className="w-full bg-emerald-600 text-white p-3 rounded-lg font-bold cursor-pointer"
-        >
-          Start New Order
-        </button>
+        <div className="text-center text-xs text-gray-500 mt-4 border-t border-gray-300 pt-3">
+          <p className="font-semibold">Thank you for choosing us!</p>
+          <p className="mt-1">Drive safe!</p>
+        </div>
+        <div className="flex gap-2 no-print">
+          <button
+            onClick={handlePreviewESCPOS}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-lg font-bold cursor-pointer transition-colors"
+            title="Preview ESC/POS output"
+          >
+            <LuEye size={20} />
+          </button>
+          {canUseRawBT() ? (
+            <>
+              <button
+                onClick={handlePrintESCPOS}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg font-bold cursor-pointer transition-colors flex items-center justify-center gap-2"
+                title="Print via ESC/POS (RawBT)"
+              >
+                <LuPrinter size={20} />
+                Print (Thermal)
+              </button>
+              <button
+                onClick={handlePrintBrowser}
+                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-3 rounded-lg font-bold cursor-pointer transition-colors"
+                title="Print via browser"
+              >
+                <LuPrinter size={20} />
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={handlePrintBrowser}
+              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg font-bold cursor-pointer transition-colors flex items-center justify-center gap-2"
+            >
+              <LuPrinter size={20} />
+              Print Receipt
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white p-3 rounded-lg font-bold cursor-pointer transition-colors"
+          >
+            Start New Order
+          </button>
+        </div>
       </div>
+
+      {/* ESC/POS Preview Modal */}
+      {showPreview && previewBytes && (
+        <ESCPOSPreview
+          bytes={previewBytes}
+          onClose={() => setShowPreview(false)}
+        />
+      )}
     </div>
   );
 }
@@ -521,9 +747,8 @@ function CarwashPOS() {
   const submitOrderToAPI = async (orderDetails: CarwashOrderDetails) => {
     const payload = {
       orderDetails: orderDetails,
-      businessUnit: "Carwash", // Identify the source as Carwash
+      businessUnit: "Carwash",
     };
-
     try {
       const response = await fetch(`${API_BASE}/api/orders`, {
         method: "POST",
@@ -533,14 +758,15 @@ function CarwashPOS() {
         },
         body: JSON.stringify(payload),
       });
-
-      if (!response.ok) throw new Error("Server responded with an error.");
       const result = await response.json();
+      if (!response.ok) {
+        toast.error(result.message || "Failed to save order to database.");
+        return null;
+      }
       toast.success(`Order ${result.orderId} Saved!`);
       return result;
-    } catch (error) {
-      console.error("API Submission Error:", error);
-      toast.error("Failed to save order to database.");
+    } catch {
+      toast.error("Network error: Could not save order.");
       return null;
     }
   };
@@ -628,6 +854,7 @@ function CarwashPOS() {
             );
           } catch {}
           setCompletedOrder(baseOrder);
+          setIsCustomerDetailsModalOpen(false);
           setIsReceiptModalOpen(true);
         }
       } finally {
@@ -702,11 +929,16 @@ function CarwashPOS() {
       )}
       {isCustomerDetailsModalOpen && (
         <CustomerDetailsModal
-          onClose={() => setIsCustomerDetailsModalOpen(false)}
+          onClose={() => {
+            if (!isSubmittingPayment) {
+              setIsCustomerDetailsModalOpen(false);
+            }
+          }}
           onSubmit={handleCustomerDetailsSubmit}
           initialName={customerName}
           initialPhone={customerPhone}
           initialPlate={plateNumber}
+          isSubmitting={isSubmittingPayment}
         />
       )}
       {isPaymentModalOpen && (
@@ -867,28 +1099,28 @@ function CarwashPOS() {
                 onClick={() => setPaymentMethod("Cash")}
                 className={`px-4 py-3 rounded-lg font-medium transition-all ${
                   paymentMethod === "Cash"
-                    ? "bg-amber-600 text-white shadow-md"
-                    : "bg-white border border-gray-200 text-gray-700 hover:border-amber-300 hover:bg-amber-50"
+                    ? "bg-amber-700 text-white shadow-md"
+                    : "bg-gray-100 border border-gray-300 text-gray-700 hover:bg-gray-200"
                 }`}
               >
-                💵 Cash
+                Cash
               </button>
               <button
                 onClick={() => setPaymentMethod("Gcash")}
                 className={`px-4 py-3 rounded-lg font-medium transition-all ${
                   paymentMethod === "Gcash"
-                    ? "bg-amber-600 text-white shadow-md"
-                    : "bg-white border border-gray-200 text-gray-700 hover:border-amber-300 hover:bg-amber-50"
+                    ? "bg-amber-700 text-white shadow-md"
+                    : "bg-gray-100 border border-gray-300 text-gray-700 hover:bg-gray-200"
                 }`}
               >
-                📱 GCash
+                GCash
               </button>
             </div>
           </div>
 
           <button
             onClick={handleProceedToPayment}
-            className="w-full bg-linear-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed disabled:shadow-none"
+            className="w-full bg-amber-700 hover:bg-amber-800 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all disabled:bg-gray-400 disabled:cursor-not-allowed disabled:shadow-none"
             disabled={cart.length === 0}
           >
             {cart.length === 0

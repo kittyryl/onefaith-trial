@@ -8,7 +8,10 @@ interface TopbarProps {
   showHamburger?: boolean;
 }
 
-export default function Topbar({ onToggleSidebar, showHamburger }: TopbarProps) {
+export default function Topbar({
+  onToggleSidebar,
+  showHamburger,
+}: TopbarProps) {
   const { user, logout } = useAuth();
 
   return (
@@ -26,7 +29,10 @@ export default function Topbar({ onToggleSidebar, showHamburger }: TopbarProps) 
       {/* Search */}
       <div className="flex-1 hidden md:flex items-center">
         <div className="relative w-full max-w-md">
-          <LuSearch size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <LuSearch
+            size={18}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+          />
           <input
             className="w-full pl-9 pr-3 py-2 rounded-md border border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
             placeholder="Search (coming soon)"

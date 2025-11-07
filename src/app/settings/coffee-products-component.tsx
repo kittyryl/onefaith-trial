@@ -2,6 +2,7 @@
 // This code should be added to settings/page.tsx
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { toast } from "react-toastify";
 import { getAuthHeaders } from "@/lib/auth";
 import Spinner from "@/components/Spinner";
@@ -148,9 +149,11 @@ export function CoffeeProducts() {
             className="bg-white rounded-lg shadow-sm border p-4 hover:shadow-md transition-shadow"
           >
             <div className="flex gap-4">
-              <img
+              <Image
                 src={product.image_url || "/images/placeholder.svg"}
                 alt={product.name}
+                width={80}
+                height={80}
                 className="w-20 h-20 rounded-lg object-cover border"
               />
               <div className="flex-1">

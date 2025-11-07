@@ -14,6 +14,14 @@ export const metadata = {
   description: "POS System for OneFaith",
 };
 
+// Mobile viewport for tablets/phones
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 export default function RootLayout({
   children,
 }: {

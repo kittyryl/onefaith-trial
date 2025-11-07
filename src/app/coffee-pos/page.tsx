@@ -10,12 +10,17 @@ import {
   LuMinus,
   LuTrash2,
   LuPrinter,
+  LuEye,
 } from "react-icons/lu";
 import { toast } from "react-toastify";
 import { v4 as uuidv4 } from "uuid";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Spinner from "@/components/Spinner";
 import { getAuthHeaders } from "@/lib/auth";
+import { printElementById } from "@/utils/print";
+import { generateCoffeeReceipt } from "@/utils/escpos";
+import { printWithRawBT, canUseRawBT } from "@/utils/rawbt";
+import ESCPOSPreview from "@/components/ESCPOSPreview";
 
 // API base
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
@@ -108,84 +113,228 @@ interface ReceiptModalProps {
 }
 
 function ReceiptModal({ order, onClose }: ReceiptModalProps) {
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewBytes, setPreviewBytes] = useState<Uint8Array | null>(null);
+
+  const handlePrintBrowser = () => {
+    // Print only the receipt content using an isolated iframe to avoid printing overlays/backdrop
+    printElementById("receipt-content", {
+      title: "ONEFAITH COFFEE Receipt",
+      pageWidthMm: 58,
+    });
+  };
+
+  const handlePrintESCPOS = async () => {
+    // Build ESC/POS receipt data
+    const escposData = generateCoffeeReceipt({
+      orderId: order.orderId,
+      items: order.items.map((item) => ({
+        name: item.name,
+        option: item.option,
+        quantity: item.quantity,
+        price: item.price,
+      })),
+      subtotal: order.subtotal,
+      discountType: order.discount_type,
+      discountAmount: order.discount,
+      total: order.total,
+      paymentMethod: order.payment,
+      cashReceived: order.cashTendered ?? undefined,
+      change: order.changeDue ?? undefined,
+      timestamp: new Date().toLocaleString("en-US", {
+        month: "short",
+        day: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      }),
+    });
+
+    // Try RawBT
+    const success = await printWithRawBT(
+      escposData,
+      () => {
+        toast.success("Sending to thermal printer...");
+      },
+      (error) => {
+        toast.error(
+          "RawBT not available. Install RawBT app or use Browser Print."
+        );
+        console.error("[ESC/POS]", error);
+      }
+    );
+
+    if (!success) {
+      // Fallback to browser print
+      handlePrintBrowser();
+    }
+  };
+
+  const handlePreviewESCPOS = () => {
+    // Build ESC/POS receipt data
+    const escposData = generateCoffeeReceipt({
+      orderId: order.orderId,
+      items: order.items.map((item) => ({
+        name: item.name,
+        option: item.option,
+        quantity: item.quantity,
+        price: item.price,
+      })),
+      subtotal: order.subtotal,
+      discountType: order.discount_type,
+      discountAmount: order.discount,
+      total: order.total,
+      paymentMethod: order.payment,
+      cashReceived: order.cashTendered ?? undefined,
+      change: order.changeDue ?? undefined,
+      timestamp: new Date().toLocaleString("en-US", {
+        month: "short",
+        day: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      }),
+    });
+
+    setPreviewBytes(escposData);
+    setShowPreview(true);
+  };
+
+  const currentDate = new Date().toLocaleString("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+
   return (
     <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
-      <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+      <div
+        className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md"
+        id="receipt-content"
+      >
         <div className="text-center mb-6">
           <LuPrinter size={48} className="mx-auto text-gray-700" />
-          <h2 className="text-2xl font-bold mt-4">Order Confirmed</h2>
-          <p className="text-gray-500 text-sm">Order ID: {order.orderId}</p>
+          <h2 className="text-2xl font-bold mt-4">ONEFAITH COFFEE</h2>
+          <p className="text-gray-600 text-xs mt-1">Coffee Shop Receipt</p>
+          <div className="text-xs text-gray-500 mt-2">
+            <div>{currentDate}</div>
+            <div className="font-semibold mt-1">Order: {order.orderId}</div>
+          </div>
         </div>
         {/* Item List */}
-        <div className="max-h-60 overflow-y-auto space-y-2 mb-4 border-t border-b py-4 border-dashed">
+        <div className="max-h-60 overflow-y-auto space-y-2 mb-4 border-t-2 border-b-2 py-4 border-dashed border-gray-400">
           {order.items.map((item) => (
-            <div key={item.cartId} className="flex justify-between">
-              <div>
-                <span className="font-semibold">{item.name}</span>
-                {item.option && (
-                  <span className="text-gray-500 text-sm">
-                    {" "}
-                    ({item.option})
-                  </span>
-                )}
-                <span className="block text-gray-500 text-sm">
+            <div key={item.cartId} className="text-sm">
+              <div className="flex justify-between font-semibold">
+                <span>{item.name}</span>
+                <span>P{(item.price * item.quantity).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-gray-600 text-xs pl-2">
+                <span>
+                  {item.option && `(${item.option}) `}
                   {item.quantity} x P{item.price.toFixed(2)}
                 </span>
               </div>
-              <span className="font-semibold">
-                P{(item.price * item.quantity).toFixed(2)}
-              </span>
             </div>
           ))}
         </div>
         {/* Summary */}
-        <div className="space-y-2 mb-6">
+        <div className="space-y-1 mb-4 text-sm">
           <div className="flex justify-between">
-            <span className="text-gray-600">Subtotal</span>
-            <span className="font-medium">P{order.subtotal.toFixed(2)}</span>
+            <span>Subtotal:</span>
+            <span>P{order.subtotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-600">Discount</span>
-            <span className="font-medium text-red-500">
-              - P{order.discount.toFixed(2)}
-            </span>
+            <span>Discount:</span>
+            <span className="text-red-600">-P{order.discount.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between text-lg font-bold">
-            <span>Total Due</span>
+          <div className="flex justify-between text-lg font-bold border-t-2 border-dashed border-gray-400 pt-2 mt-2">
+            <span>TOTAL:</span>
             <span>P{order.total.toFixed(2)}</span>
           </div>
           {order.payment === "Cash" && (
-            <div className="border-t border-dashed pt-2 mt-2">
+            <div className="border-t border-dashed border-gray-300 pt-2 mt-2 space-y-1">
               <div className="flex justify-between">
-                <span className="text-gray-600">Cash Tendered</span>
-                <span className="font-medium">
-                  P{order.cashTendered?.toFixed(2)}
-                </span>
+                <span>Cash:</span>
+                <span>P{order.cashTendered?.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-lg font-bold">
-                <span>Change Due</span>
+              <div className="flex justify-between font-bold">
+                <span>Change:</span>
                 <span>P{order.changeDue?.toFixed(2)}</span>
               </div>
             </div>
           )}
-          <div className="space-y-2 mt-4">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Order Type</span>
-              <span className="font-medium">{order.type}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Payment</span>
-              <span className="font-medium">{order.payment}</span>
-            </div>
+        </div>
+        <div className="text-xs text-gray-600 space-y-1 border-t border-gray-300 pt-3">
+          <div className="flex justify-between">
+            <span>Type:</span>
+            <span className="font-medium">{order.type}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Payment:</span>
+            <span className="font-medium">{order.payment}</span>
           </div>
         </div>
-        <button
-          onClick={onClose}
-          className="w-full bg-emerald-600 text-white p-3 rounded-lg font-bold cursor-pointer"
-        >
-          Start New Order
-        </button>
+        <div className="text-center text-xs text-gray-500 mt-4 border-t border-gray-300 pt-3">
+          <p className="font-semibold">Thank you for your order!</p>
+          <p className="mt-1">Please come again</p>
+        </div>
+        <div className="flex gap-2 no-print">
+          <button
+            onClick={handlePreviewESCPOS}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-lg font-bold cursor-pointer transition-colors"
+            title="Preview ESC/POS output"
+          >
+            <LuEye size={20} />
+          </button>
+          {canUseRawBT() ? (
+            <>
+              <button
+                onClick={handlePrintESCPOS}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg font-bold cursor-pointer transition-colors flex items-center justify-center gap-2"
+                title="Print via ESC/POS (RawBT)"
+              >
+                <LuPrinter size={20} />
+                Print (Thermal)
+              </button>
+              <button
+                onClick={handlePrintBrowser}
+                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-3 rounded-lg font-bold cursor-pointer transition-colors"
+                title="Print via browser"
+              >
+                <LuPrinter size={20} />
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={handlePrintBrowser}
+              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg font-bold cursor-pointer transition-colors flex items-center justify-center gap-2"
+            >
+              <LuPrinter size={20} />
+              Print Receipt
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white p-3 rounded-lg font-bold cursor-pointer transition-colors"
+          >
+            Start New Order
+          </button>
+        </div>
       </div>
+
+      {/* ESC/POS Preview Modal */}
+      {showPreview && previewBytes && (
+        <ESCPOSPreview
+          bytes={previewBytes}
+          onClose={() => setShowPreview(false)}
+        />
+      )}
     </div>
   );
 }
@@ -452,11 +601,10 @@ function CoffeePOS() {
 
   // Submit order
   const submitOrderToAPI = async (orderDetails: OrderDetails) => {
-    // Map frontend field names to backend expectations
     const payload = {
       orderDetails: {
         ...orderDetails,
-        order_type: orderDetails.type, // Backend expects order_type, not type
+        order_type: orderDetails.type,
       },
       businessUnit: "Coffee",
     };
@@ -469,13 +617,16 @@ function CoffeePOS() {
         },
         body: JSON.stringify(payload),
       });
-      if (!response.ok) throw new Error("Server responded with an error.");
       const result = await response.json();
+      if (!response.ok) {
+        // Show backend error message if available
+        toast.error(result.message || "Failed to save order to database.");
+        return null;
+      }
       toast.success(`Order ${result.orderId} Saved!`);
       return result;
-    } catch (error) {
-      console.error("API Submission Error:", error);
-      toast.error("Failed to save order to database.");
+    } catch {
+      toast.error("Network error: Could not save order.");
       return null;
     }
   };
@@ -483,7 +634,7 @@ function CoffeePOS() {
   const handleProceedToPayment = async () => {
     if (isSubmittingPayment) return;
     if (cart.length === 0) {
-      toast.error("Cart is empty.");
+      toast.error("Cart is empty. Please add items before checkout.");
       return;
     }
     if (!orderType) {
@@ -495,32 +646,32 @@ function CoffeePOS() {
       return;
     }
 
+    // For Cash payment, open the payment modal
+    if (paymentMethod === "Cash") {
+      setIsPaymentModalOpen(true);
+      return;
+    }
+
+    // For GCash payment, process immediately
+    setIsSubmittingPayment(true);
     const baseOrder: OrderDetails = {
-      orderId: `ORD-${uuidv4().slice(0, 8)}`,
+      orderId: uuidv4(),
       items: cart,
-      subtotal: subtotal,
-      discount: discount,
-      total: total,
+      subtotal,
+      discount,
+      total,
       type: orderType,
       payment: paymentMethod,
-      discount_type: discountType,
       cashTendered: null,
       changeDue: null,
+      discount_type: discountType,
     };
-
-    if (paymentMethod === "Gcash") {
-      setIsSubmittingPayment(true);
-      try {
-        const submissionResult = await submitOrderToAPI(baseOrder);
-        if (submissionResult) {
-          setCompletedOrder(baseOrder);
-          setIsReceiptModalOpen(true);
-        }
-      } finally {
-        setIsSubmittingPayment(false);
-      }
-    } else if (paymentMethod === "Cash") {
-      setIsPaymentModalOpen(true);
+    const result = await submitOrderToAPI(baseOrder);
+    setIsSubmittingPayment(false);
+    if (result) {
+      setCompletedOrder(baseOrder);
+      setIsReceiptModalOpen(true);
+      clearCart();
     }
   };
 
@@ -758,34 +909,6 @@ function CoffeePOS() {
             </span>
           </div>
 
-          {/* Discounts */}
-          <div className="mb-4">
-            <label className="block text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">
-              Apply Discount
-            </label>
-            <div className="grid grid-cols-4 gap-2">
-              {(["Senior", "PWD", "Employee"] as const).map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setDiscountType(type)}
-                  className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${
-                    discountType === type
-                      ? "bg-amber-600 text-white shadow-md"
-                      : "bg-white border border-gray-200 text-gray-700 hover:border-amber-300 hover:bg-amber-50"
-                  }`}
-                >
-                  {type}
-                </button>
-              ))}
-              <button
-                onClick={() => setDiscountType(null)}
-                className="px-3 py-2 rounded-lg text-xs font-medium bg-white border border-gray-200 text-red-600 hover:bg-red-50 hover:border-red-300 transition-all"
-              >
-                Clear
-              </button>
-            </div>
-          </div>
-
           <div className="bg-white rounded-lg p-4 mb-4 border-2 border-gray-900">
             <div className="flex justify-between items-center">
               <span className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
@@ -801,6 +924,55 @@ function CoffeePOS() {
             </div>
           </div>
 
+          {/* Discount Selection */}
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">
+              Discount (20% off)
+            </label>
+            <div className="grid grid-cols-4 gap-2">
+              <button
+                onClick={() => setDiscountType(null)}
+                className={`px-2 py-2 rounded-lg font-medium transition-all text-xs btn-chip ${
+                  discountType === null
+                    ? "bg-gray-800 text-white shadow-md"
+                    : "bg-gray-100 border border-gray-300 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                None
+              </button>
+              <button
+                onClick={() => setDiscountType("Senior")}
+                className={`px-2 py-2 rounded-lg font-medium transition-all text-xs btn-chip ${
+                  discountType === "Senior"
+                    ? "bg-blue-700 text-white shadow-md"
+                    : "bg-gray-100 border border-gray-300 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                Senior
+              </button>
+              <button
+                onClick={() => setDiscountType("PWD")}
+                className={`px-2 py-2 rounded-lg font-medium transition-all text-xs btn-chip ${
+                  discountType === "PWD"
+                    ? "bg-purple-700 text-white shadow-md"
+                    : "bg-gray-100 border border-gray-300 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                PWD
+              </button>
+              <button
+                onClick={() => setDiscountType("Employee")}
+                className={`px-2 py-2 rounded-lg font-medium transition-all text-xs btn-chip ${
+                  discountType === "Employee"
+                    ? "bg-green-700 text-white shadow-md"
+                    : "bg-gray-100 border border-gray-300 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                Employee
+              </button>
+            </div>
+          </div>
+
           {/* Order type */}
           <div className="mb-4">
             <label className="block text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">
@@ -811,21 +983,21 @@ function CoffeePOS() {
                 onClick={() => setOrderType("Dine in")}
                 className={`px-4 py-3 rounded-lg font-medium transition-all ${
                   orderType === "Dine in"
-                    ? "bg-amber-600 text-white shadow-md"
-                    : "bg-white border border-gray-200 text-gray-700 hover:border-amber-300 hover:bg-amber-50"
+                    ? "bg-amber-700 text-white shadow-md"
+                    : "bg-gray-100 border border-gray-300 text-gray-700 hover:bg-gray-200"
                 }`}
               >
-                🍽️ Dine in
+                Dine in
               </button>
               <button
                 onClick={() => setOrderType("Take out")}
                 className={`px-4 py-3 rounded-lg font-medium transition-all ${
                   orderType === "Take out"
-                    ? "bg-amber-600 text-white shadow-md"
-                    : "bg-white border border-gray-200 text-gray-700 hover:border-amber-300 hover:bg-amber-50"
+                    ? "bg-amber-700 text-white shadow-md"
+                    : "bg-gray-100 border border-gray-300 text-gray-700 hover:bg-gray-200"
                 }`}
               >
-                🥡 Take out
+                Take out
               </button>
             </div>
           </div>
@@ -840,28 +1012,28 @@ function CoffeePOS() {
                 onClick={() => setPaymentMethod("Cash")}
                 className={`px-4 py-3 rounded-lg font-medium transition-all ${
                   paymentMethod === "Cash"
-                    ? "bg-amber-600 text-white shadow-md"
-                    : "bg-white border border-gray-200 text-gray-700 hover:border-amber-300 hover:bg-amber-50"
+                    ? "bg-amber-700 text-white shadow-md"
+                    : "bg-gray-100 border border-gray-300 text-gray-700 hover:bg-gray-200"
                 }`}
               >
-                💵 Cash
+                Cash
               </button>
               <button
                 onClick={() => setPaymentMethod("Gcash")}
                 className={`px-4 py-3 rounded-lg font-medium transition-all ${
                   paymentMethod === "Gcash"
-                    ? "bg-amber-600 text-white shadow-md"
-                    : "bg-white border border-gray-200 text-gray-700 hover:border-amber-300 hover:bg-amber-50"
+                    ? "bg-amber-700 text-white shadow-md"
+                    : "bg-gray-100 border border-gray-300 text-gray-700 hover:bg-gray-200"
                 }`}
               >
-                📱 GCash
+                GCash
               </button>
             </div>
           </div>
 
           <button
             onClick={handleProceedToPayment}
-            className="w-full bg-linear-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed disabled:shadow-none"
+            className="w-full bg-amber-700 hover:bg-amber-800 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all disabled:bg-gray-400 disabled:cursor-not-allowed disabled:shadow-none"
             disabled={cart.length === 0 || isSubmittingPayment}
           >
             {cart.length === 0
