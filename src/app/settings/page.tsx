@@ -134,9 +134,6 @@ export default function SettingsPage() {
 function ShiftHistory() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentShift, setCurrentShift] = useState<Shift | null>(null);
-  const [startingShift, setStartingShift] = useState(false);
-  const [endingShift, setEndingShift] = useState(false);
 
   const fetchShifts = async () => {
     try {
@@ -155,71 +152,9 @@ function ShiftHistory() {
     }
   };
 
-  const fetchCurrentShift = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/api/shifts/current`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) {
-        setCurrentShift(null);
-        return;
-      }
-      const data: Shift | null = await res.json();
-      setCurrentShift(data);
-    } catch (err) {
-      console.error(err);
-      setCurrentShift(null);
-    }
-  };
-
   useEffect(() => {
     fetchShifts();
-    fetchCurrentShift();
   }, []);
-
-  const handleStartShift = async () => {
-    try {
-      setStartingShift(true);
-      const res = await fetch(`${API_BASE}/api/shifts/start`, {
-        method: "POST",
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || "Failed to start shift");
-      }
-      toast.success("Shift started!");
-      await fetchCurrentShift();
-      await fetchShifts();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to start shift");
-    } finally {
-      setStartingShift(false);
-    }
-  };
-
-  const handleEndShift = async () => {
-    const notes = prompt("Add any notes for this shift (optional):");
-    try {
-      setEndingShift(true);
-      const res = await fetch(`${API_BASE}/api/shifts/end`, {
-        method: "POST",
-        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({ notes }),
-      });
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || "Failed to end shift");
-      }
-      toast.success("Shift ended!");
-      setCurrentShift(null);
-      await fetchShifts();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to end shift");
-    } finally {
-      setEndingShift(false);
-    }
-  };
 
   const calculateDuration = (start: string, end: string | null) => {
     if (!end) return "In progress";
@@ -233,60 +168,12 @@ function ShiftHistory() {
 
   return (
     <div>
-      {/* Shift Controls */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-4">
-        <div className="flex items-center justify-between">
-          <div>
-            {currentShift ? (
-              <div className="flex items-center gap-3">
-                <div className="h-3 w-3 bg-emerald-500 rounded-full animate-pulse"></div>
-                <div>
-                  <p className="font-semibold text-gray-900">Shift Active</p>
-                  <p className="text-sm text-gray-600">
-                    Started {new Date(currentShift.start_time).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3">
-                <div className="h-3 w-3 bg-gray-400 rounded-full"></div>
-                <div>
-                  <p className="font-semibold text-gray-900">No Active Shift</p>
-                  <p className="text-sm text-gray-600">
-                    Start a shift to track your work time
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-          <div>
-            {currentShift ? (
-              <button
-                onClick={handleEndShift}
-                disabled={endingShift}
-                className="px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-              >
-                {endingShift ? <Spinner size="sm" color="gray" /> : "End Shift"}
-              </button>
-            ) : (
-              <button
-                onClick={handleStartShift}
-                disabled={startingShift}
-                className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-              >
-                {startingShift ? (
-                  <Spinner size="sm" color="gray" />
-                ) : (
-                  "Start Shift"
-                )}
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* Shift History Table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">Shift History</h3>
+          <p className="text-sm text-gray-600 mt-1">View all shifts. Use the Dashboard to start or end your shift.</p>
+        </div>
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>

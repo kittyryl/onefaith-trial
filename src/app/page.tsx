@@ -192,22 +192,36 @@ function Dashboard() {
 
         // My Shift endpoints (best-effort)
         try {
-          const [myShiftSummaryRes, myShiftTxRes] = await Promise.all([
+          const [myShiftSummaryRes, myShiftTxRes, currentShiftRes] = await Promise.all([
             fetch(`${API_URL}/api/reports/my-shift/summary`, {
               headers: getAuthHeaders(),
             }),
             fetch(`${API_URL}/api/reports/my-shift/transactions?size=5`, {
               headers: getAuthHeaders(),
             }),
+            fetch(`${API_URL}/api/shifts/current`, {
+              headers: getAuthHeaders(),
+            }),
           ]);
+          
           if (myShiftSummaryRes.ok) {
             const summaryJson = await myShiftSummaryRes.json();
+            
+            // Override shift data with current active shift if available
+            if (currentShiftRes.ok) {
+              const currentShift = await currentShiftRes.json();
+              if (currentShift) {
+                summaryJson.shift = currentShift;
+              }
+            }
+            
             console.log("[MyShift] Summary response:", summaryJson);
             setMyShiftSummary(summaryJson);
           } else {
             console.warn("[MyShift] Summary failed:", myShiftSummaryRes.status, await myShiftSummaryRes.text());
             setMyShiftSummary(null);
           }
+          
           if (myShiftTxRes.ok) {
             const txJson = await myShiftTxRes.json();
             console.log("[MyShift] Transactions response:", txJson);
@@ -260,13 +274,16 @@ function Dashboard() {
         method: "POST",
         headers: getAuthHeaders(),
       });
+      
+      const data = await res.json();
+      
       if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || "Failed to start shift");
+        throw new Error(data.message || data.error || "Failed to start shift");
       }
       toast.success("Shift started! You can now use the POS systems.");
       fetchDashboardData(); // Refresh to show the new shift
     } catch (err) {
+      console.error("Start shift error:", err);
       toast.error(err instanceof Error ? err.message : "Failed to start shift");
     } finally {
       setStartingShift(false);
@@ -283,13 +300,16 @@ function Dashboard() {
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ notes: notes || null }),
       });
+      
+      const data = await res.json();
+      
       if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || "Failed to end shift");
+        throw new Error(data.message || data.error || "Failed to end shift");
       }
       toast.success("Shift ended successfully!");
       fetchDashboardData(); // Refresh to show shift ended
     } catch (err) {
+      console.error("End shift error:", err);
       toast.error(err instanceof Error ? err.message : "Failed to end shift");
     } finally {
       setEndingShift(false);
@@ -462,23 +482,24 @@ function Dashboard() {
                       </span>
                     </div>
                   )}
-                  {myShiftSummary?.shift && myShiftSummary.shift.status === 'active' ? (
+                  {/* Button logic: show End if active shift exists, otherwise show Start */}
+                  {myShiftSummary?.shift?.status === 'active' ? (
                     <button
                       onClick={handleEndShift}
                       disabled={endingShift}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
                     >
                       {endingShift ? <Spinner /> : 'End Shift'}
                     </button>
-                  ) : (
+                  ) : !myShiftSummary?.shift || myShiftSummary.shift.status === 'ended' ? (
                     <button
                       onClick={handleStartShift}
                       disabled={startingShift}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
                     >
                       {startingShift ? <Spinner /> : 'Start Shift'}
                     </button>
-                  )}
+                  ) : null}
                 </div>
               </div>
 
