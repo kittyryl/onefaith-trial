@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/exhaustive-deps */
 
 import { useState, useEffect } from "react";
 import {
@@ -68,6 +69,32 @@ interface CarwashService {
   }[];
 }
 
+interface MyShiftTotals {
+  orderCount: number;
+  totalSales: number;
+  byBusinessUnit: { Coffee: number; Carwash: number };
+  byPayment: { Cash: number; Gcash: number };
+}
+
+interface MyShiftSummaryResp {
+  shift: unknown | null;
+  totals: MyShiftTotals;
+}
+
+interface MyShiftTransaction {
+  order_id: string;
+  created_at: string;
+  total: number | string;
+  payment_method: string;
+  items: {
+    business_unit: "Coffee" | "Carwash";
+    item_type: string;
+    quantity: number;
+    line_total: number | string;
+    details: unknown;
+  }[];
+}
+
 // Dashboard
 function Dashboard() {
   const { isManager } = useAuth();
@@ -77,6 +104,8 @@ function Dashboard() {
   const [inProgressServices, setInProgressServices] = useState<
     CarwashService[]
   >([]);
+  const [myShiftSummary, setMyShiftSummary] = useState<MyShiftSummaryResp | null>(null);
+  const [myShiftTransactions, setMyShiftTransactions] = useState<MyShiftTransaction[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Fetch data
@@ -130,7 +159,8 @@ function Dashboard() {
           carwashServices.filter((service) => service.status === "in_progress")
         );
       } else {
-        // Staff: fetch only inventory and carwash services (no sales data)
+        // Staff: fetch inventory, carwash services, and my-shift data
+        console.log("[Dashboard] Fetching staff data...");
         const [ingredientsRes, carwashRes] = await Promise.all([
           fetch(`${API_URL}/api/ingredients`, {
             headers: getAuthHeaders(),
@@ -147,6 +177,38 @@ function Dashboard() {
 
         const ingredients: Ingredient[] = await ingredientsRes.json();
         const carwashServices: CarwashService[] = await carwashRes.json();
+
+        // My Shift endpoints (best-effort)
+        try {
+          const [myShiftSummaryRes, myShiftTxRes] = await Promise.all([
+            fetch(`${API_URL}/api/reports/my-shift/summary`, {
+              headers: getAuthHeaders(),
+            }),
+            fetch(`${API_URL}/api/reports/my-shift/transactions?size=5`, {
+              headers: getAuthHeaders(),
+            }),
+          ]);
+          if (myShiftSummaryRes.ok) {
+            const summaryJson = await myShiftSummaryRes.json();
+            console.log("[MyShift] Summary response:", summaryJson);
+            setMyShiftSummary(summaryJson);
+          } else {
+            console.warn("[MyShift] Summary failed:", myShiftSummaryRes.status, await myShiftSummaryRes.text());
+            setMyShiftSummary(null);
+          }
+          if (myShiftTxRes.ok) {
+            const txJson = await myShiftTxRes.json();
+            console.log("[MyShift] Transactions response:", txJson);
+            setMyShiftTransactions(txJson.transactions || []);
+          } else {
+            console.warn("[MyShift] Transactions failed:", myShiftTxRes.status, await myShiftTxRes.text());
+            setMyShiftTransactions([]);
+          }
+        } catch (e) {
+          console.error("My Shift endpoints error:", e);
+          setMyShiftSummary(null);
+          setMyShiftTransactions([]);
+        }
 
         // Ensure sales data is cleared for staff
         setSummaryData([]);
@@ -296,13 +358,63 @@ function Dashboard() {
           </div>
         </div>
       ) : (
-        <div className="mb-6 sm:mb-8">
-          <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm">
-            <p className="text-sm text-gray-600">
-              Sales metrics are visible to managers.
-            </p>
+        <>
+          <div className="mb-6 sm:mb-8">
+            <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm">
+              <p className="text-sm text-gray-600">
+                Sales metrics are visible to managers.
+              </p>
+            </div>
           </div>
-        </div>
+
+          <div className="mb-6 sm:mb-8">
+            <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm">
+              <h2 className="text-lg sm:text-xl font-semibold mb-4">My Shift</h2>
+              <p className="text-xs text-gray-400 mb-2">Debug: {myShiftSummary ? 'Has data' : 'No data'} | Transactions: {myShiftTransactions.length}</p>
+              {myShiftSummary ? (
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mb-4">
+                  <div>
+                    <p className="text-xs sm:text-sm text-gray-500 mb-1">Orders</p>
+                    <p className="text-xl sm:text-2xl lg:text-3xl font-bold">{myShiftSummary.totals?.orderCount ?? 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs sm:text-sm text-gray-500 mb-1">Total Sales</p>
+                    <p className="text-xl sm:text-2xl lg:text-3xl font-bold">₱{Number(myShiftSummary.totals?.totalSales || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs sm:text-sm text-gray-500 mb-1">Coffee</p>
+                    <p className="text-xl sm:text-2xl lg:text-3xl font-bold">₱{Number(myShiftSummary.totals?.byBusinessUnit?.Coffee || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs sm:text-sm text-gray-500 mb-1">Carwash</p>
+                    <p className="text-xl sm:text-2xl lg:text-3xl font-bold">₱{Number(myShiftSummary.totals?.byBusinessUnit?.Carwash || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 mb-4">No shift data for today.</p>
+              )}
+
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">Recent transactions</h3>
+              <div className="space-y-2">
+                {myShiftTransactions.length > 0 ? (
+                  myShiftTransactions.map((tx) => (
+                    <div key={tx.order_id} className="flex items-center justify-between p-2 border rounded-lg">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-gray-900 truncate">Order #{tx.order_id}</div>
+                        <div className="text-xs text-gray-600">
+                          {new Date(tx.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} • {tx.payment_method}
+                        </div>
+                      </div>
+                      <div className="text-sm font-bold text-gray-900">₱{Number(tx.total).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-500">No recent transactions.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Sales + Low Stock */}
