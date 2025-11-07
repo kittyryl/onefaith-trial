@@ -129,29 +129,19 @@ function Dashboard() {
       const API_URL =
         process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
       if (isManager()) {
-        // Manager: fetch sales summary and chart as well
-        const [summaryRes, chartRes, ingredientsRes, carwashRes] =
-          await Promise.all([
-            fetch(`${API_URL}/api/reports/summary`, {
-              headers: getAuthHeaders(),
-            }),
-            fetch(`${API_URL}/api/reports/sales-by-business-by-day`, {
-              headers: getAuthHeaders(),
-            }),
-            fetch(`${API_URL}/api/ingredients`, {
-              headers: getAuthHeaders(),
-            }),
-            fetch(`${API_URL}/api/carwash/services`, {
-              headers: getAuthHeaders(),
-            }),
-          ]);
+        // Manager: fetch sales, inventory, carwash services AND my-shift endpoints
+        console.log("[Dashboard] Fetching manager data including shift...");
+        const [summaryRes, chartRes, ingredientsRes, carwashRes] = await Promise.all([
+          fetch(`${API_URL}/api/reports/summary`, { headers: getAuthHeaders() }),
+          fetch(`${API_URL}/api/reports/sales-by-business-by-day`, { headers: getAuthHeaders() }),
+          fetch(`${API_URL}/api/ingredients`, { headers: getAuthHeaders() }),
+          fetch(`${API_URL}/api/carwash/services`, { headers: getAuthHeaders() }),
+        ]);
 
         if (!summaryRes.ok) throw new Error("Failed to fetch sales summary.");
         if (!chartRes.ok) throw new Error("Failed to fetch chart data.");
-        if (!ingredientsRes.ok)
-          throw new Error("Failed to fetch inventory data.");
-        if (!carwashRes.ok)
-          throw new Error("Failed to fetch carwash services.");
+        if (!ingredientsRes.ok) throw new Error("Failed to fetch inventory data.");
+        if (!carwashRes.ok) throw new Error("Failed to fetch carwash services.");
 
         const summary: SalesSummary[] = await summaryRes.json();
         const chart: SalesByBusinessByDay[] = await chartRes.json();
@@ -172,6 +162,34 @@ function Dashboard() {
         setInProgressServices(
           carwashServices.filter((service) => service.status === "in_progress")
         );
+
+        // Manager My Shift endpoints
+        try {
+          const [myShiftSummaryRes, myShiftTxRes] = await Promise.all([
+            fetch(`${API_URL}/api/reports/my-shift/summary`, { headers: getAuthHeaders() }),
+            fetch(`${API_URL}/api/reports/my-shift/transactions?size=5`, { headers: getAuthHeaders() }),
+          ]);
+          if (myShiftSummaryRes.ok) {
+            const summaryJson = await myShiftSummaryRes.json();
+            console.log("[MyShift][Manager] Summary response:", summaryJson);
+            setMyShiftSummary(summaryJson);
+          } else {
+            console.warn("[MyShift][Manager] Summary failed:", myShiftSummaryRes.status, await myShiftSummaryRes.text());
+            setMyShiftSummary(null);
+          }
+          if (myShiftTxRes.ok) {
+            const txJson = await myShiftTxRes.json();
+            console.log("[MyShift][Manager] Transactions response:", txJson);
+            setMyShiftTransactions(txJson.transactions || []);
+          } else {
+            console.warn("[MyShift][Manager] Transactions failed:", myShiftTxRes.status, await myShiftTxRes.text());
+            setMyShiftTransactions([]);
+          }
+        } catch (e) {
+          console.error("[MyShift][Manager] endpoints error:", e);
+          setMyShiftSummary(null);
+          setMyShiftTransactions([]);
+        }
       } else {
         // Staff: fetch inventory, carwash services, and my-shift data
         console.log("[Dashboard] Fetching staff data...");
@@ -371,71 +389,39 @@ function Dashboard() {
         Dashboard
       </h1>
 
-      {/* Metrics */}
-      {isManager() ? (
+      {/* Manager metrics (visible only to managers) */}
+      {isManager() && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mb-6 sm:mb-8">
           <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
-            <p className="text-xs sm:text-sm text-gray-500 mb-1">
-              Total Revenue
-            </p>
+            <p className="text-xs sm:text-sm text-gray-500 mb-1">Total Revenue</p>
             <div className="flex items-baseline gap-1">
-              <span className="text-emerald-600 text-base sm:text-lg shrink-0">
-                ₱
-              </span>
-              <span
-                className="text-xl sm:text-2xl md:text-3xl font-bold tabular-nums tracking-tight break-all leading-tight"
-                title={`₱${formattedRevenue}`}
-              >
-                {formattedRevenue}
-              </span>
+              <span className="text-emerald-600 text-base sm:text-lg shrink-0">₱</span>
+              <span className="text-xl sm:text-2xl md:text-3xl font-bold tabular-nums tracking-tight break-all leading-tight" title={`₱${formattedRevenue}`}>{formattedRevenue}</span>
             </div>
           </div>
           <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow flex items-center">
-            <div className="mr-3 sm:mr-4 flex items-center justify-center w-10 h-10 rounded-full bg-gray-100">
-              <LuFileText size={22} className="text-gray-600" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs sm:text-sm text-gray-500">Total Orders</p>
-              <p className="text-xl sm:text-2xl lg:text-3xl font-bold mt-1">
-                {totalOrders}
-              </p>
-            </div>
+            <div className="mr-3 sm:mr-4 flex items-center justify-center w-10 h-10 rounded-full bg-gray-100"><LuFileText size={22} className="text-gray-600" /></div>
+            <div className="min-w-0"><p className="text-xs sm:text-sm text-gray-500">Total Orders</p><p className="text-xl sm:text-2xl lg:text-3xl font-bold mt-1">{totalOrders}</p></div>
           </div>
-          <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow flex items-center">
-            <div className="mr-3 sm:mr-4 flex items-center justify-center w-10 h-10 rounded-full bg-amber-50">
-              <LuCoffee size={22} className="text-amber-800" />
+            <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow flex items-center">
+              <div className="mr-3 sm:mr-4 flex items-center justify-center w-10 h-10 rounded-full bg-amber-50"><LuCoffee size={22} className="text-amber-800" /></div>
+              <div className="min-w-0"><p className="text-xs sm:text-sm text-gray-500">Coffee Orders</p><p className="text-xl sm:text-2xl lg:text-3xl font-bold mt-1">{totalCoffeeOrders}</p></div>
             </div>
-            <div className="min-w-0">
-              <p className="text-xs sm:text-sm text-gray-500">Coffee Orders</p>
-              <p className="text-xl sm:text-2xl lg:text-3xl font-bold mt-1">
-                {totalCoffeeOrders}
-              </p>
+            <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow flex items-center">
+              <div className="mr-3 sm:mr-4 flex items-center justify-center w-10 h-10 rounded-full bg-blue-50"><LuCar size={22} className="text-blue-600" /></div>
+              <div className="min-w-0"><p className="text-xs sm:text-sm text-gray-500">Carwash Orders</p><p className="text-xl sm:text-2xl lg:text-3xl font-bold mt-1">{totalCarwashOrders}</p></div>
             </div>
-          </div>
-          <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow flex items-center">
-            <div className="mr-3 sm:mr-4 flex items-center justify-center w-10 h-10 rounded-full bg-blue-50">
-              <LuCar size={22} className="text-blue-600" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs sm:text-sm text-gray-500">Carwash Orders</p>
-              <p className="text-xl sm:text-2xl lg:text-3xl font-bold mt-1">
-                {totalCarwashOrders}
-              </p>
-            </div>
-          </div>
         </div>
-      ) : (
-        <>
-          <div className="mb-6 sm:mb-8">
-            <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm">
-              <p className="text-sm text-gray-600">
-                Sales metrics are visible to managers.
-              </p>
-            </div>
-          </div>
+      )}
 
-          <div className="mb-6 sm:mb-8">
-            <div className="bg-linear-to-br from-blue-50 to-indigo-50 p-6 sm:p-8 rounded-2xl border border-blue-200 shadow-lg">
+      {/* My Shift panel (visible to ALL roles) */}
+      <div className="mb-6 sm:mb-8">
+        {!isManager() && (
+          <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm mb-4">
+            <p className="text-sm text-gray-600">Sales metrics are visible to managers.</p>
+          </div>
+        )}
+        <div className="bg-linear-to-br from-blue-50 to-indigo-50 p-6 sm:p-8 rounded-2xl border border-blue-200 shadow-lg">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                   <div className="bg-blue-600 text-white p-3 rounded-xl shadow-md">
@@ -592,10 +578,8 @@ function Dashboard() {
                   <p className="text-sm text-gray-500">Start taking orders to see your shift stats!</p>
                 </div>
               )}
-            </div>
-          </div>
-        </>
-      )}
+        </div>
+      </div>
 
       {/* Sales + Low Stock */}
       {isManager() ? (
