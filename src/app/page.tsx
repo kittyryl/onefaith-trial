@@ -194,29 +194,17 @@ function Dashboard() {
 
         // My Shift endpoints (best-effort)
         try {
-          const [myShiftSummaryRes, myShiftTxRes, currentShiftRes] = await Promise.all([
+          const [myShiftSummaryRes, myShiftTxRes] = await Promise.all([
             fetch(`${API_URL}/api/reports/my-shift/summary`, {
               headers: getAuthHeaders(),
             }),
             fetch(`${API_URL}/api/reports/my-shift/transactions?size=5`, {
               headers: getAuthHeaders(),
             }),
-            fetch(`${API_URL}/api/shifts/current`, {
-              headers: getAuthHeaders(),
-            }),
           ]);
           
           if (myShiftSummaryRes.ok) {
             const summaryJson = await myShiftSummaryRes.json();
-            
-            // Override shift data with current active shift if available
-            if (currentShiftRes.ok) {
-              const currentShift = await currentShiftRes.json();
-              if (currentShift) {
-                summaryJson.shift = currentShift;
-              }
-            }
-            
             console.log("[MyShift] Summary response:", summaryJson);
             setMyShiftSummary(summaryJson);
           } else {

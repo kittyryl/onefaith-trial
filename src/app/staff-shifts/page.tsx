@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { LuUsers, LuFilter, LuDownload, LuCalendar, LuClock, LuDollarSign, LuShoppingCart, LuCoffee, LuCar, LuSearch } from "react-icons/lu";
 import { toast } from "react-toastify";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -32,7 +32,7 @@ interface Transaction {
     item_type: string;
     quantity: number;
     line_total: number;
-    details: any;
+    details: Record<string, unknown>;
   }[];
 }
 
@@ -111,7 +111,7 @@ function StaffShiftsHistory() {
   }, []);
 
   // Fetch transactions
-  const fetchTransactions = async () => {
+  const fetchTransactions = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams({
@@ -142,11 +142,11 @@ function StaffShiftsHistory() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, selectedStaff, selectedBusinessUnit, selectedPayment, startDate, endDate]);
 
   useEffect(() => {
     fetchTransactions();
-  }, [page, selectedStaff, selectedBusinessUnit, selectedPayment, startDate, endDate]);
+  }, [fetchTransactions]);
 
   const handleExportCSV = () => {
     if (transactions.length === 0) {
