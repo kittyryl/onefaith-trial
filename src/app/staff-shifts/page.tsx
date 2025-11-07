@@ -203,8 +203,14 @@ function StaffShiftsHistory() {
     setSelectedPayment("");
     setStartDate("");
     setEndDate("");
+    setSearchQuery("");
     setPage(1);
   };
+
+  // When search query changes, reset to first page so results are relevant
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery]);
 
   if (loading && transactions.length === 0) {
     return <PageLoader message="Loading Sales & Staff History..." color="blue" />;
@@ -227,14 +233,17 @@ function StaffShiftsHistory() {
 
   // Calculate stats from filtered transactions
   const totalRevenue = filteredTransactions.reduce((sum, tx) => sum + Number(tx.total), 0);
-  const coffeeTransactions = filteredTransactions.filter(tx => 
-    tx.items.some(item => item.business_unit === "Coffee")
-  );
-  const carwashTransactions = filteredTransactions.filter(tx => 
-    tx.items.some(item => item.business_unit === "Carwash")
-  );
-  const coffeeRevenue = coffeeTransactions.reduce((sum, tx) => sum + Number(tx.total), 0);
-  const carwashRevenue = carwashTransactions.reduce((sum, tx) => sum + Number(tx.total), 0);
+  // Per-item revenue per business unit to avoid overstating mixed orders
+  const coffeeRevenue = filteredTransactions.reduce((sum, tx) =>
+    sum + tx.items
+      .filter((i) => i.business_unit === "Coffee")
+      .reduce((s, i) => s + Number(i.line_total), 0)
+  , 0);
+  const carwashRevenue = filteredTransactions.reduce((sum, tx) =>
+    sum + tx.items
+      .filter((i) => i.business_unit === "Carwash")
+      .reduce((s, i) => s + Number(i.line_total), 0)
+  , 0);
 
   return (
     <div className="p-4 sm:p-6 md:p-8 min-h-screen bg-linear-to-br from-gray-50 to-gray-100">
@@ -275,7 +284,7 @@ function StaffShiftsHistory() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 font-medium">Total Revenue</p>
+              <p className="text-sm text-gray-600 font-medium">Filtered Page Revenue</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">₱{totalRevenue.toFixed(2)}</p>
             </div>
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
@@ -287,9 +296,9 @@ function StaffShiftsHistory() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 font-medium">Coffee Sales</p>
+              <p className="text-sm text-gray-600 font-medium">Coffee Item Sales</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">₱{coffeeRevenue.toFixed(2)}</p>
-              <p className="text-xs text-gray-500 mt-1">{coffeeTransactions.length} orders</p>
+              {/* Optional: number of orders contributing to coffee sales can be derived if needed */}
             </div>
             <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
               <LuCoffee size={24} className="text-amber-600" />
@@ -300,9 +309,9 @@ function StaffShiftsHistory() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 font-medium">Carwash Sales</p>
+              <p className="text-sm text-gray-600 font-medium">Carwash Item Sales</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">₱{carwashRevenue.toFixed(2)}</p>
-              <p className="text-xs text-gray-500 mt-1">{carwashTransactions.length} orders</p>
+              {/* Optional: number of orders contributing to carwash sales can be derived if needed */}
             </div>
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
               <LuCar size={24} className="text-blue-600" />
@@ -353,18 +362,28 @@ function StaffShiftsHistory() {
 
       {/* Search Bar */}
       <div className="mb-4">
-        <div className="relative">
-          <LuSearch
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-            size={18}
-          />
-          <input
-            type="text"
-            placeholder="Search by Order ID, staff name, or item..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-          />
+        <div className="relative flex gap-2">
+          <div className="relative flex-1">
+            <LuSearch
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              size={18}
+            />
+            <input
+              type="text"
+              placeholder="Search by Order ID, staff name, or item..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-600 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -462,15 +481,44 @@ function StaffShiftsHistory() {
         </button>
       </div>
 
-      {/* Results Summary */}
+      {/* Results Summary + Active Filters */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-        <p className="text-sm text-blue-900">
-          Showing <span className="font-bold">{transactions.length}</span> of{" "}
-          <span className="font-bold">{total}</span> transactions
-          {selectedStaff && users.find(u => u.id === Number(selectedStaff)) && (
-            <span> for <span className="font-bold">{users.find(u => u.id === Number(selectedStaff))?.full_name}</span></span>
-          )}
-        </p>
+        <div className="flex flex-col gap-2">
+          <p className="text-sm text-blue-900">
+            Showing <span className="font-bold">{transactions.length}</span> of{" "}
+            <span className="font-bold">{total}</span> transactions
+            {selectedStaff && users.find(u => u.id === Number(selectedStaff)) && (
+              <span> for <span className="font-bold">{users.find(u => u.id === Number(selectedStaff))?.full_name}</span></span>
+            )}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {selectedStaff && (
+              <span className="inline-flex items-center px-2 py-1 rounded bg-blue-100 text-blue-800 text-xs font-medium">
+                Staff: {users.find(u => u.id === Number(selectedStaff))?.full_name || selectedStaff}
+              </span>
+            )}
+            {selectedBusinessUnit && (
+              <span className="inline-flex items-center px-2 py-1 rounded bg-amber-100 text-amber-800 text-xs font-medium">
+                Unit: {selectedBusinessUnit}
+              </span>
+            )}
+            {selectedPayment && (
+              <span className="inline-flex items-center px-2 py-1 rounded bg-green-100 text-green-800 text-xs font-medium">
+                Payment: {selectedPayment}
+              </span>
+            )}
+            {(startDate || endDate) && (
+              <span className="inline-flex items-center px-2 py-1 rounded bg-gray-100 text-gray-800 text-xs font-medium">
+                Date: {startDate || 'Any'} → {endDate || 'Any'}
+              </span>
+            )}
+            {searchQuery && (
+              <span className="inline-flex items-center px-2 py-1 rounded bg-purple-100 text-purple-800 text-xs font-medium">
+                Search: “{searchQuery}”
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Transactions Table */}
