@@ -149,7 +149,7 @@ function ReportsPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 min-h-screen">
+    <div className="p-4 sm:p-6 md:p-8 min-h-screen bg-linear-to-br from-gray-50 to-gray-100">
       <h1 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6">Reports & Analytics</h1>
 
       {/* Tabs */}

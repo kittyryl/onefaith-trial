@@ -342,7 +342,7 @@ function CarwashServices() {
   if (loading) return <PageLoader message="Loading services..." color="blue" />;
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-cyan-50 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">

@@ -1050,7 +1050,7 @@ function Inventory() {
   // renderProductTable removed (POS products are now managed in Settings)
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-amber-50 via-white to-rose-50 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100 p-4 sm:p-6 lg:p-8">
       {/* Modal Rendering: Delete Confirmation */}
       {isDeleteModalOpen && itemToDelete && (
         <ConfirmDeleteModal

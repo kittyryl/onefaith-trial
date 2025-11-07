@@ -528,7 +528,7 @@ function CoffeePOS() {
         
         if (response.ok) {
           const data = await response.json();
-          setHasActiveShift(data.status === 'active');
+          setHasActiveShift(data && data.status === 'active');
         } else {
           setHasActiveShift(false);
         }
