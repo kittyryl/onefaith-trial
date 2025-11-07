@@ -27,6 +27,7 @@ import {
 import { format, parseISO } from "date-fns";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import PageLoader from "@/components/PageLoader";
+import Spinner from "@/components/Spinner";
 import { getAuthHeaders } from "@/lib/auth";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -116,6 +117,8 @@ function Dashboard() {
   const [myShiftSummary, setMyShiftSummary] = useState<MyShiftSummaryResp | null>(null);
   const [myShiftTransactions, setMyShiftTransactions] = useState<MyShiftTransaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [startingShift, setStartingShift] = useState(false);
+  const [endingShift, setEndingShift] = useState(false);
 
   // Fetch data
   const fetchDashboardData = async () => {
@@ -247,6 +250,51 @@ function Dashboard() {
   useEffect(() => {
     fetchDashboardData();
   }, []);
+
+  // Shift handlers for staff
+  const handleStartShift = async () => {
+    try {
+      setStartingShift(true);
+      const API_URL = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
+      const res = await fetch(`${API_URL}/api/shifts/start`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to start shift");
+      }
+      toast.success("Shift started! You can now use the POS systems.");
+      fetchDashboardData(); // Refresh to show the new shift
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to start shift");
+    } finally {
+      setStartingShift(false);
+    }
+  };
+
+  const handleEndShift = async () => {
+    const notes = prompt("Add any notes for this shift (optional):");
+    try {
+      setEndingShift(true);
+      const API_URL = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
+      const res = await fetch(`${API_URL}/api/shifts/end`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: notes || null }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to end shift");
+      }
+      toast.success("Shift ended successfully!");
+      fetchDashboardData(); // Refresh to show shift ended
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to end shift");
+    } finally {
+      setEndingShift(false);
+    }
+  };
 
   // Browser notifications for low stock
   useEffect(() => {
@@ -401,18 +449,37 @@ function Dashboard() {
                     </p>
                   </div>
                 </div>
-                {myShiftSummary?.shift && (
-                  <div className="text-right">
-                    <div className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-1">Status</div>
-                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${
-                      myShiftSummary.shift.status === 'active' 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {myShiftSummary.shift.status === 'active' ? '● Active' : '● Ended'}
-                    </span>
-                  </div>
-                )}
+                <div className="flex items-center gap-3">
+                  {myShiftSummary?.shift && (
+                    <div className="text-right mr-4">
+                      <div className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-1">Status</div>
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${
+                        myShiftSummary.shift.status === 'active' 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {myShiftSummary.shift.status === 'active' ? '● Active' : '● Ended'}
+                      </span>
+                    </div>
+                  )}
+                  {myShiftSummary?.shift && myShiftSummary.shift.status === 'active' ? (
+                    <button
+                      onClick={handleEndShift}
+                      disabled={endingShift}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {endingShift ? <Spinner /> : 'End Shift'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleStartShift}
+                      disabled={startingShift}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {startingShift ? <Spinner /> : 'Start Shift'}
+                    </button>
+                  )}
+                </div>
               </div>
 
               {myShiftSummary && myShiftSummary.totals && myShiftSummary.totals.orderCount > 0 ? (
