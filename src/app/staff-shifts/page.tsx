@@ -40,6 +40,12 @@ function StaffShiftsHistory() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<User[]>([]);
+  interface Aggregates {
+    totalRevenue: number;
+    coffeeItemRevenue: number;
+    carwashItemRevenue: number;
+  }
+  const [aggregates, setAggregates] = useState<Aggregates>({ totalRevenue: 0, coffeeItemRevenue: 0, carwashItemRevenue: 0 });
   
   // Filters
   const [selectedStaff, setSelectedStaff] = useState<string>("");
@@ -136,6 +142,11 @@ function StaffShiftsHistory() {
       setTransactions(data.transactions || []);
       setTotalPages(data.totalPages || 1);
       setTotal(data.total || 0);
+      setAggregates({
+        totalRevenue: data.aggregates?.totalRevenue || 0,
+        coffeeItemRevenue: data.aggregates?.coffeeItemRevenue || 0,
+        carwashItemRevenue: data.aggregates?.carwashItemRevenue || 0,
+      });
     } catch (err) {
       console.error("Error fetching transactions:", err);
       toast.error("Failed to load shift transactions");
@@ -286,6 +297,7 @@ function StaffShiftsHistory() {
             <div>
               <p className="text-sm text-gray-600 font-medium">Filtered Page Revenue</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">₱{totalRevenue.toFixed(2)}</p>
+            <p className="text-xs text-gray-500 mt-1">All Matching: ₱{aggregates.totalRevenue.toFixed(2)}</p>
             </div>
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
               <LuDollarSign size={24} className="text-green-600" />
@@ -298,6 +310,7 @@ function StaffShiftsHistory() {
             <div>
               <p className="text-sm text-gray-600 font-medium">Coffee Item Sales</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">₱{coffeeRevenue.toFixed(2)}</p>
+            <p className="text-xs text-gray-500 mt-1">All Matching: ₱{aggregates.coffeeItemRevenue.toFixed(2)}</p>
               {/* Optional: number of orders contributing to coffee sales can be derived if needed */}
             </div>
             <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
@@ -311,6 +324,7 @@ function StaffShiftsHistory() {
             <div>
               <p className="text-sm text-gray-600 font-medium">Carwash Item Sales</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">₱{carwashRevenue.toFixed(2)}</p>
+            <p className="text-xs text-gray-500 mt-1">All Matching: ₱{aggregates.carwashItemRevenue.toFixed(2)}</p>
               {/* Optional: number of orders contributing to carwash sales can be derived if needed */}
             </div>
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
