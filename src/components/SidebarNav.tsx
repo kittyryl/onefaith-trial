@@ -12,6 +12,7 @@ import {
   LuCoffee,
   LuSettings,
   LuChartBar,
+  LuUsers,
 } from "react-icons/lu";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAuthHeaders } from "@/lib/auth";
@@ -32,6 +33,12 @@ const managementItems = [
   },
   { name: "Sales", href: "/sales", icon: LuArmchair, roles: ["manager"] },
   { name: "Reports", href: "/reports", icon: LuChartBar, roles: ["manager"] },
+  {
+    name: "Staff Shifts",
+    href: "/staff-shifts",
+    icon: LuUsers,
+    roles: ["manager"],
+  },
   {
     name: "Carwash Services",
     href: "/carwash-services",
