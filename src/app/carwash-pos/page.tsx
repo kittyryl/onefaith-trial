@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useState, useEffect } from "react";
-import { LuCar, LuX, LuTrash2, LuPrinter, LuEye } from "react-icons/lu";
+import { useRouter } from "next/navigation";
+import { LuCar, LuX, LuTrash2, LuPrinter, LuEye, LuTriangleAlert } from "react-icons/lu";
 import { toast } from "react-toastify";
 import { v4 as uuidv4 } from "uuid";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -49,6 +50,10 @@ interface CarwashOrderDetails {
   changeDue: number | null;
   discount_type: string | null;
   order_type: null;
+  // Customer info (for receipt display)
+  customerName?: string | null;
+  customerPhone?: string | null;
+  plateNumber?: string | null;
 }
 
 // Modals
@@ -99,6 +104,8 @@ function VehicleSelectionModal({
   );
 }
 
+// (Bike variant modal removed; catalog should list Bike and Big Bike separately)
+
 // -- Customer Details Modal --
 interface CustomerDetailsModalProps {
   onClose: () => void;
@@ -111,6 +118,7 @@ interface CustomerDetailsModalProps {
   initialPhone: string;
   initialPlate: string;
   isSubmitting?: boolean;
+  vehicleType?: string | null; // used to toggle plate requirement for bikes
 }
 
 function CustomerDetailsModal({
@@ -120,11 +128,16 @@ function CustomerDetailsModal({
   initialPhone,
   initialPlate,
   isSubmitting = false,
+  vehicleType,
 }: CustomerDetailsModalProps) {
   const [name, setName] = useState(initialName);
   const [phone, setPhone] = useState(initialPhone);
   const [plate, setPlate] = useState(initialPlate);
   const [errors, setErrors] = useState({ name: "", phone: "", plate: "" });
+  const plateRequired = !(
+    typeof vehicleType === "string" &&
+    vehicleType.trim().toLowerCase() === "bike"
+  );
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -188,6 +201,15 @@ function CustomerDetailsModal({
       return;
     }
 
+    // Validate plate only if required (non-bike) and empty
+    if (plateRequired && (!plate || plate.trim() === "")) {
+      setErrors((prev) => ({
+        ...prev,
+        plate: "Plate is required for this vehicle type",
+      }));
+      return;
+    }
+
     onSubmit({ customerName: name, customerPhone: phone, plateNumber: plate });
   };
 
@@ -240,13 +262,14 @@ function CustomerDetailsModal({
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Plate Number <span className="text-red-500">*</span>
+                Plate Number{" "}
+                {plateRequired && <span className="text-red-500">*</span>}
               </label>
               <input
                 value={plate}
                 onChange={handlePlateChange}
                 placeholder="e.g. ABC1234"
-                required
+                required={plateRequired}
                 maxLength={20}
                 className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 uppercase"
               />
@@ -492,6 +515,29 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
             <div className="font-semibold mt-1">Order: {order.orderId}</div>
           </div>
         </div>
+        {(order.customerName || order.customerPhone || order.plateNumber) && (
+          <div className="text-xs text-gray-700 mb-4 border rounded-md p-3 bg-gray-50">
+            <div className="font-semibold text-gray-800 mb-1">Customer</div>
+            {order.customerName && (
+              <div className="flex justify-between">
+                <span>Name:</span>
+                <span className="font-medium">{order.customerName}</span>
+              </div>
+            )}
+            {order.customerPhone && (
+              <div className="flex justify-between">
+                <span>Phone:</span>
+                <span className="font-medium">{order.customerPhone}</span>
+              </div>
+            )}
+            {order.plateNumber && (
+              <div className="flex justify-between">
+                <span>Plate:</span>
+                <span className="font-medium">{order.plateNumber}</span>
+              </div>
+            )}
+          </div>
+        )}
         <div className="max-h-60 overflow-y-auto space-y-2 mb-4 border-t-2 border-b-2 py-4 border-dashed border-gray-400">
           {order.items.map((item) => (
             <div key={item.cartId} className="text-sm">
@@ -601,8 +647,12 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
 
 // POS
 function CarwashPOS() {
+  const router = useRouter();
+  
   const [allServices, setAllServices] = useState<CarwashService[]>([]);
   const [loadingServices, setLoadingServices] = useState(true);
+  const [checkingShift, setCheckingShift] = useState(true);
+  const [hasActiveShift, setHasActiveShift] = useState(false);
   const [cart, setCart] = useState<CarwashCartItem[]>([]);
   const [selectedService, setSelectedService] = useState<CarwashService | null>(
     null
@@ -627,6 +677,31 @@ function CarwashPOS() {
   const [isSubmittingPayment, setIsSubmittingPayment] =
     useState<boolean>(false);
 
+  // Check for active shift
+  useEffect(() => {
+    const checkShift = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/shifts/current`, {
+          headers: getAuthHeaders(),
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setHasActiveShift(data.status === 'active');
+        } else {
+          setHasActiveShift(false);
+        }
+      } catch (error) {
+        console.error('Failed to check shift:', error);
+        setHasActiveShift(false);
+      } finally {
+        setCheckingShift(false);
+      }
+    };
+
+    checkShift();
+  }, []);
+
   // Fetch services from API
   useEffect(() => {
     const fetchServices = async () => {
@@ -648,9 +723,10 @@ function CarwashPOS() {
   }, []);
 
   // --- Cart Handlers ---
-  const handleSelectServiceWithVehicle = (
+  const addItemToCart = (
     service: CarwashService,
-    priceInfo: ServicePrice
+    priceInfo: ServicePrice,
+    overrideVehicle?: string
   ) => {
     if (!currentOrderId) {
       setCurrentOrderId(`ORD-${uuidv4().slice(0, 8)}`);
@@ -658,26 +734,35 @@ function CarwashPOS() {
     const existingItem = cart.find(
       (item) =>
         item.serviceId === service.id.toString() &&
-        item.vehicle === priceInfo.vehicle_type
+        item.vehicle === (overrideVehicle || priceInfo.vehicle_type)
     );
 
     if (existingItem) {
       // Service already in cart - don't allow duplicates
       toast.info(
-        `${service.name} for ${priceInfo.vehicle_type} is already in cart`
+        `${service.name} for ${
+          overrideVehicle || priceInfo.vehicle_type
+        } is already in cart`
       );
     } else {
       const newItem: CarwashCartItem = {
         cartId: uuidv4(),
         serviceId: service.id.toString(),
         serviceName: service.name,
-        vehicle: priceInfo.vehicle_type,
+        vehicle: overrideVehicle || priceInfo.vehicle_type,
         price: priceInfo.price,
         quantity: 1,
       };
       setCart((prevCart) => [...prevCart, newItem]);
     }
     setSelectedService(null);
+  };
+
+  const handleSelectServiceWithVehicle = (
+    service: CarwashService,
+    priceInfo: ServicePrice
+  ) => {
+    addItemToCart(service, priceInfo);
   };
 
   const handleRemoveItem = (cartId: string) => {
@@ -700,8 +785,19 @@ function CarwashPOS() {
   const total = subtotal;
 
   // Upsert service ticket
+  type TicketOverrides = {
+    plateNumber?: string | null;
+    customerName?: string | null;
+    customerPhone?: string | null;
+    paymentMethod?: "Cash" | "Gcash" | null;
+    vehicleType?: string | null;
+  };
+
   const upsertCarwashServiceTicket = useCallback(
-    async (status: "queue" | "in_progress" | "completed" = "queue") => {
+    async (
+      status: "queue" | "in_progress" | "completed" = "queue",
+      overrides?: TicketOverrides
+    ) => {
       if (!currentOrderId || cart.length === 0) return;
 
       const serviceItems = cart.map((it) => ({
@@ -712,7 +808,13 @@ function CarwashPOS() {
         quantity: it.quantity,
       }));
 
-      const inferredVehicleType = cart[0]?.vehicle || null;
+      const inferredVehicleType =
+        overrides?.vehicleType ?? cart[0]?.vehicle ?? null;
+
+      const finalPlate = overrides?.plateNumber ?? plateNumber ?? null;
+      const finalName = overrides?.customerName ?? customerName ?? null;
+      const finalPhone = overrides?.customerPhone ?? customerPhone ?? null;
+      const finalPayment = overrides?.paymentMethod ?? paymentMethod ?? null;
 
       try {
         await fetch(`${API_BASE}/api/carwash/services`, {
@@ -725,10 +827,10 @@ function CarwashPOS() {
             order_id: currentOrderId,
             status,
             vehicle_type: inferredVehicleType,
-            plate_number: plateNumber || null,
-            customer_name: customerName || null,
-            customer_phone: customerPhone || null,
-            payment_method: null,
+            plate_number: finalPlate || null,
+            customer_name: finalName || null,
+            customer_phone: finalPhone || null,
+            payment_method: finalPayment || null,
             total,
             items: serviceItems,
           }),
@@ -738,7 +840,15 @@ function CarwashPOS() {
         console.error("Failed to upsert carwash service ticket:", e);
       }
     },
-    [currentOrderId, cart, total, plateNumber, customerName, customerPhone]
+    [
+      currentOrderId,
+      cart,
+      total,
+      plateNumber,
+      customerName,
+      customerPhone,
+      paymentMethod,
+    ]
   );
 
   // Removed auto-update of queue ticket - only create after payment
@@ -837,6 +947,9 @@ function CarwashPOS() {
       cashTendered: null,
       changeDue: null,
       order_type: null,
+      customerName: details.customerName,
+      customerPhone: details.customerPhone,
+      plateNumber: details.plateNumber,
     };
 
     if (paymentMethod === "Gcash") {
@@ -845,7 +958,13 @@ function CarwashPOS() {
         const submissionResult = await submitOrderToAPI(baseOrder);
         if (submissionResult) {
           // Create carwash service ticket after successful payment
-          await upsertCarwashServiceTicket("queue");
+          await upsertCarwashServiceTicket("queue", {
+            plateNumber: details.plateNumber || null,
+            customerName: details.customerName || null,
+            customerPhone: details.customerPhone || null,
+            paymentMethod,
+            vehicleType: cart[0]?.vehicle || null,
+          });
           // Link the ticket to the DB order id (optional linkage)
           try {
             await linkTicketToOrder(
@@ -884,11 +1003,20 @@ function CarwashPOS() {
         cashTendered: cashAmount,
         changeDue: cashAmount - total,
         order_type: null,
+        customerName,
+        customerPhone,
+        plateNumber,
       };
       const submissionResult = await submitOrderToAPI(orderDetails);
       if (submissionResult) {
         // Create carwash service ticket after successful cash payment
-        await upsertCarwashServiceTicket("queue");
+        await upsertCarwashServiceTicket("queue", {
+          plateNumber: plateNumber || null,
+          customerName: customerName || null,
+          customerPhone: customerPhone || null,
+          paymentMethod: "Cash",
+          vehicleType: cart[0]?.vehicle || null,
+        });
         // Link the ticket to the DB order id
         try {
           await linkTicketToOrder(
@@ -917,6 +1045,37 @@ function CarwashPOS() {
   // --- RENDER ---
   return (
     <div className="flex h-screen bg-linear-to-br from-gray-50 to-gray-100 flex-col lg:flex-row">
+      {/* Shift Warning Overlay */}
+      {!checkingShift && !hasActiveShift && (
+        <div className="fixed inset-0 backdrop-blur-md bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center">
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-amber-100 rounded-full mb-6">
+              <LuTriangleAlert size={40} className="text-amber-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-3">
+              No Active Shift
+            </h2>
+            <p className="text-gray-600 mb-6">
+              You must start a shift before using the Carwash POS system.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => router.push('/')}
+                className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition-colors"
+              >
+                Go to Dashboard
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors"
+              >
+                Refresh
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modals */}
       {selectedService && (
         <VehicleSelectionModal
@@ -939,8 +1098,10 @@ function CarwashPOS() {
           initialPhone={customerPhone}
           initialPlate={plateNumber}
           isSubmitting={isSubmittingPayment}
+          vehicleType={cart[0]?.vehicle || null}
         />
       )}
+      {/* No variant modal; ensure catalog has separate Bike and Big Bike prices */}
       {isPaymentModalOpen && (
         <PaymentModal
           totalDue={total}

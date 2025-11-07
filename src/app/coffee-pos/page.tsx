@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
   LuSearch,
@@ -11,6 +12,7 @@ import {
   LuTrash2,
   LuPrinter,
   LuEye,
+  LuTriangleAlert,
 } from "react-icons/lu";
 import { toast } from "react-toastify";
 import { v4 as uuidv4 } from "uuid";
@@ -445,10 +447,14 @@ function PaymentModal({
 
 // POS
 function CoffeePOS() {
+  const router = useRouter();
+  
   // State
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [allCategories, setAllCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [checkingShift, setCheckingShift] = useState(true);
+  const [hasActiveShift, setHasActiveShift] = useState(false);
 
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchTerm, setSearchTerm] = useState("");
@@ -510,6 +516,31 @@ function CoffeePOS() {
     };
 
     fetchProducts();
+  }, []);
+
+  // Check for active shift
+  useEffect(() => {
+    const checkShift = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/shifts/current`, {
+          headers: getAuthHeaders(),
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setHasActiveShift(data.status === 'active');
+        } else {
+          setHasActiveShift(false);
+        }
+      } catch (error) {
+        console.error('Failed to check shift:', error);
+        setHasActiveShift(false);
+      } finally {
+        setCheckingShift(false);
+      }
+    };
+
+    checkShift();
   }, []);
 
   // Derived
@@ -714,6 +745,37 @@ function CoffeePOS() {
   // UI
   return (
     <div className="flex h-screen bg-linear-to-br from-gray-50 to-gray-100 flex-col lg:flex-row">
+      {/* Shift Warning Overlay */}
+      {!checkingShift && !hasActiveShift && (
+        <div className="fixed inset-0 backdrop-blur-md bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center">
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-amber-100 rounded-full mb-6">
+              <LuTriangleAlert size={40} className="text-amber-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-3">
+              No Active Shift
+            </h2>
+            <p className="text-gray-600 mb-6">
+              You must start a shift before using the Coffee POS system.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => router.push('/')}
+                className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition-colors"
+              >
+                Go to Dashboard
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors"
+              >
+                Refresh
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modals */}
       {isModalOpen && productForModal && (
         <TempSelectionModal

@@ -9,6 +9,9 @@ import {
   LuFileText,
   LuTriangleAlert,
   LuPackage,
+  LuClock,
+  LuTrendingUp,
+  LuCalendar,
 } from "react-icons/lu";
 import { toast } from "react-toastify";
 import {
@@ -77,7 +80,13 @@ interface MyShiftTotals {
 }
 
 interface MyShiftSummaryResp {
-  shift: unknown | null;
+  shift: {
+    id: number;
+    user_id: number;
+    start_time: string;
+    end_time: string | null;
+    status: 'active' | 'ended';
+  } | null;
   totals: MyShiftTotals;
 }
 
@@ -368,50 +377,134 @@ function Dashboard() {
           </div>
 
           <div className="mb-6 sm:mb-8">
-            <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm">
-              <h2 className="text-lg sm:text-xl font-semibold mb-4">My Shift</h2>
-              <p className="text-xs text-gray-400 mb-2">Debug: {myShiftSummary ? 'Has data' : 'No data'} | Transactions: {myShiftTransactions.length}</p>
-              {myShiftSummary ? (
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mb-4">
-                  <div>
-                    <p className="text-xs sm:text-sm text-gray-500 mb-1">Orders</p>
-                    <p className="text-xl sm:text-2xl lg:text-3xl font-bold">{myShiftSummary.totals?.orderCount ?? 0}</p>
+            <div className="bg-linear-to-br from-blue-50 to-indigo-50 p-6 sm:p-8 rounded-2xl border border-blue-200 shadow-lg">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="bg-blue-600 text-white p-3 rounded-xl shadow-md">
+                    <LuClock size={28} />
                   </div>
                   <div>
-                    <p className="text-xs sm:text-sm text-gray-500 mb-1">Total Sales</p>
-                    <p className="text-xl sm:text-2xl lg:text-3xl font-bold">₱{Number(myShiftSummary.totals?.totalSales || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs sm:text-sm text-gray-500 mb-1">Coffee</p>
-                    <p className="text-xl sm:text-2xl lg:text-3xl font-bold">₱{Number(myShiftSummary.totals?.byBusinessUnit?.Coffee || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs sm:text-sm text-gray-500 mb-1">Carwash</p>
-                    <p className="text-xl sm:text-2xl lg:text-3xl font-bold">₱{Number(myShiftSummary.totals?.byBusinessUnit?.Carwash || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900">My Shift</h2>
+                    <p className="text-sm text-gray-600">
+                      {myShiftSummary?.shift ? (
+                        <>
+                          <LuCalendar className="inline mr-1" size={14} />
+                          {new Date(myShiftSummary.shift.start_time).toLocaleDateString('en-US', { 
+                            month: 'short', 
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}
+                        </>
+                      ) : (
+                        'No active shift today'
+                      )}
+                    </p>
                   </div>
                 </div>
-              ) : (
-                <p className="text-sm text-gray-500 mb-4">No shift data for today.</p>
-              )}
-
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">Recent transactions</h3>
-              <div className="space-y-2">
-                {myShiftTransactions.length > 0 ? (
-                  myShiftTransactions.map((tx) => (
-                    <div key={tx.order_id} className="flex items-center justify-between p-2 border rounded-lg">
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium text-gray-900 truncate">Order #{tx.order_id}</div>
-                        <div className="text-xs text-gray-600">
-                          {new Date(tx.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} • {tx.payment_method}
-                        </div>
-                      </div>
-                      <div className="text-sm font-bold text-gray-900">₱{Number(tx.total).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-gray-500">No recent transactions.</p>
+                {myShiftSummary?.shift && (
+                  <div className="text-right">
+                    <div className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-1">Status</div>
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${
+                      myShiftSummary.shift.status === 'active' 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {myShiftSummary.shift.status === 'active' ? '● Active' : '● Ended'}
+                    </span>
+                  </div>
                 )}
               </div>
+
+              {myShiftSummary && myShiftSummary.totals && myShiftSummary.totals.orderCount > 0 ? (
+                <>
+                  {/* Stats Grid */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                      <div className="flex items-center gap-2 mb-2">
+                        <LuFileText size={18} className="text-gray-500" />
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Orders</p>
+                      </div>
+                      <p className="text-3xl font-bold text-gray-900">{myShiftSummary.totals.orderCount}</p>
+                    </div>
+                    
+                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                      <div className="flex items-center gap-2 mb-2">
+                        <LuTrendingUp size={18} className="text-emerald-600" />
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total Sales</p>
+                      </div>
+                      <p className="text-2xl font-bold text-emerald-600">
+                        ₱{Number(myShiftSummary.totals.totalSales || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    
+                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                      <div className="flex items-center gap-2 mb-2">
+                        <LuCoffee size={18} className="text-amber-700" />
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Coffee</p>
+                      </div>
+                      <p className="text-xl font-bold text-amber-700">
+                        ₱{Number(myShiftSummary.totals.byBusinessUnit?.Coffee || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    
+                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                      <div className="flex items-center gap-2 mb-2">
+                        <LuCar size={18} className="text-blue-600" />
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Carwash</p>
+                      </div>
+                      <p className="text-xl font-bold text-blue-600">
+                        ₱{Number(myShiftSummary.totals.byBusinessUnit?.Carwash || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Recent Transactions */}
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                    <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-4 flex items-center gap-2">
+                      <span className="w-1 h-4 bg-blue-600 rounded-full"></span>
+                      Recent Transactions
+                    </h3>
+                    <div className="space-y-2">
+                      {myShiftTransactions.length > 0 ? (
+                        myShiftTransactions.map((tx) => (
+                          <div key={tx.order_id} className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition-colors border border-gray-100">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-sm font-semibold text-gray-900">#{tx.order_id}</span>
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                  tx.payment_method === 'Cash' 
+                                    ? 'bg-green-100 text-green-700' 
+                                    : 'bg-blue-100 text-blue-700'
+                                }`}>
+                                  {tx.payment_method}
+                                </span>
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {new Date(tx.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-lg font-bold text-gray-900">
+                                ₱{Number(tx.total).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-gray-500 text-center py-4">No transactions yet</p>
+                      )}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
+                  <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
+                    <LuFileText size={32} className="text-gray-400" />
+                  </div>
+                  <p className="text-gray-600 font-medium mb-1">No transactions yet</p>
+                  <p className="text-sm text-gray-500">Start taking orders to see your shift stats!</p>
+                </div>
+              )}
             </div>
           </div>
         </>
