@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { LuUsers, LuFilter, LuDownload, LuCalendar, LuClock } from "react-icons/lu";
+import { LuUsers, LuFilter, LuDownload, LuCalendar, LuClock, LuDollarSign, LuShoppingCart, LuCoffee, LuCar } from "react-icons/lu";
 import { toast } from "react-toastify";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import ManagerOnlyRoute from "@/components/ManagerOnlyRoute";
@@ -53,6 +53,43 @@ function StaffShiftsHistory() {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const pageSize = 50;
+
+  // Quick date filters
+  const setQuickDateFilter = (filter: string) => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    switch (filter) {
+      case "today":
+        setStartDate(today.toISOString().split("T")[0]);
+        setEndDate(today.toISOString().split("T")[0]);
+        break;
+      case "yesterday":
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        setStartDate(yesterday.toISOString().split("T")[0]);
+        setEndDate(yesterday.toISOString().split("T")[0]);
+        break;
+      case "week":
+        const weekStart = new Date(today);
+        weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+        setStartDate(weekStart.toISOString().split("T")[0]);
+        setEndDate(today.toISOString().split("T")[0]);
+        break;
+      case "last7":
+        const last7 = new Date(today);
+        last7.setDate(last7.getDate() - 6);
+        setStartDate(last7.toISOString().split("T")[0]);
+        setEndDate(today.toISOString().split("T")[0]);
+        break;
+      case "month":
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        setStartDate(monthStart.toISOString().split("T")[0]);
+        setEndDate(today.toISOString().split("T")[0]);
+        break;
+    }
+    setPage(1);
+  };
 
   // Fetch users for filter
   useEffect(() => {
@@ -172,6 +209,17 @@ function StaffShiftsHistory() {
     return <PageLoader message="Loading Staff Shift History..." color="blue" />;
   }
 
+  // Calculate stats
+  const totalRevenue = transactions.reduce((sum, tx) => sum + Number(tx.total), 0);
+  const coffeeTransactions = transactions.filter(tx => 
+    tx.items.some(item => item.business_unit === "Coffee")
+  );
+  const carwashTransactions = transactions.filter(tx => 
+    tx.items.some(item => item.business_unit === "Carwash")
+  );
+  const coffeeRevenue = coffeeTransactions.reduce((sum, tx) => sum + Number(tx.total), 0);
+  const carwashRevenue = carwashTransactions.reduce((sum, tx) => sum + Number(tx.total), 0);
+
   return (
     <div className="p-4 sm:p-6 md:p-8 min-h-screen bg-linear-to-br from-gray-50 to-gray-100">
       {/* Header */}
@@ -191,6 +239,99 @@ function StaffShiftsHistory() {
           <LuDownload size={18} />
           Export CSV
         </button>
+      </div>
+
+      {/* Summary Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 font-medium">Total Transactions</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{total}</p>
+            </div>
+            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+              <LuShoppingCart size={24} className="text-blue-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 font-medium">Total Revenue</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">₱{totalRevenue.toFixed(2)}</p>
+            </div>
+            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+              <LuDollarSign size={24} className="text-green-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 font-medium">Coffee Sales</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">₱{coffeeRevenue.toFixed(2)}</p>
+              <p className="text-xs text-gray-500 mt-1">{coffeeTransactions.length} orders</p>
+            </div>
+            <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
+              <LuCoffee size={24} className="text-amber-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 font-medium">Carwash Sales</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">₱{carwashRevenue.toFixed(2)}</p>
+              <p className="text-xs text-gray-500 mt-1">{carwashTransactions.length} orders</p>
+            </div>
+            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+              <LuCar size={24} className="text-blue-600" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Date Filters */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-4">
+        <div className="flex items-center gap-2 mb-3">
+          <LuCalendar size={18} className="text-gray-600" />
+          <h3 className="text-sm font-semibold text-gray-700">Quick Date Filters</h3>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setQuickDateFilter("today")}
+            className="px-3 py-1.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg font-medium transition-colors"
+          >
+            Today
+          </button>
+          <button
+            onClick={() => setQuickDateFilter("yesterday")}
+            className="px-3 py-1.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg font-medium transition-colors"
+          >
+            Yesterday
+          </button>
+          <button
+            onClick={() => setQuickDateFilter("last7")}
+            className="px-3 py-1.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg font-medium transition-colors"
+          >
+            Last 7 Days
+          </button>
+          <button
+            onClick={() => setQuickDateFilter("week")}
+            className="px-3 py-1.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg font-medium transition-colors"
+          >
+            This Week
+          </button>
+          <button
+            onClick={() => setQuickDateFilter("month")}
+            className="px-3 py-1.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg font-medium transition-colors"
+          >
+            This Month
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
