@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { LuUsers, LuFilter, LuDownload, LuCalendar, LuClock, LuDollarSign, LuShoppingCart, LuCoffee, LuCar } from "react-icons/lu";
+import { LuUsers, LuFilter, LuDownload, LuCalendar, LuClock, LuDollarSign, LuShoppingCart, LuCoffee, LuCar, LuSearch } from "react-icons/lu";
 import { toast } from "react-toastify";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import ManagerOnlyRoute from "@/components/ManagerOnlyRoute";
@@ -47,6 +47,7 @@ function StaffShiftsHistory() {
   const [selectedPayment, setSelectedPayment] = useState<string>("");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState<string>("");
   
   // Pagination
   const [page, setPage] = useState(1);
@@ -206,15 +207,30 @@ function StaffShiftsHistory() {
   };
 
   if (loading && transactions.length === 0) {
-    return <PageLoader message="Loading Staff Shift History..." color="blue" />;
+    return <PageLoader message="Loading Sales & Staff History..." color="blue" />;
   }
 
-  // Calculate stats
-  const totalRevenue = transactions.reduce((sum, tx) => sum + Number(tx.total), 0);
-  const coffeeTransactions = transactions.filter(tx => 
+  // Filter transactions based on search query
+  const filteredTransactions = transactions.filter((tx) => {
+    if (!searchQuery) return true;
+    
+    const query = searchQuery.toLowerCase();
+    const matchesOrderId = tx.order_id.toLowerCase().includes(query);
+    const matchesStaff = tx.full_name.toLowerCase().includes(query) || 
+                         tx.username.toLowerCase().includes(query);
+    const matchesItem = tx.items.some(item => 
+      item.item_type.toLowerCase().includes(query)
+    );
+    
+    return matchesOrderId || matchesStaff || matchesItem;
+  });
+
+  // Calculate stats from filtered transactions
+  const totalRevenue = filteredTransactions.reduce((sum, tx) => sum + Number(tx.total), 0);
+  const coffeeTransactions = filteredTransactions.filter(tx => 
     tx.items.some(item => item.business_unit === "Coffee")
   );
-  const carwashTransactions = transactions.filter(tx => 
+  const carwashTransactions = filteredTransactions.filter(tx => 
     tx.items.some(item => item.business_unit === "Carwash")
   );
   const coffeeRevenue = coffeeTransactions.reduce((sum, tx) => sum + Number(tx.total), 0);
@@ -227,9 +243,9 @@ function StaffShiftsHistory() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-3">
             <LuUsers size={32} className="text-blue-600" />
-            Staff Shift History
+            Sales & Staff Shifts
           </h1>
-          <p className="text-sm text-gray-600 mt-1">View all staff transactions by shift</p>
+          <p className="text-sm text-gray-600 mt-1">View all transactions with staff and shift details</p>
         </div>
         <button
           onClick={handleExportCSV}
@@ -246,8 +262,9 @@ function StaffShiftsHistory() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 font-medium">Total Transactions</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{total}</p>
+              <p className="text-sm text-gray-600 font-medium">Displayed Transactions</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{filteredTransactions.length}</p>
+              {searchQuery && <p className="text-xs text-gray-500 mt-1">of {total} total</p>}
             </div>
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
               <LuShoppingCart size={24} className="text-blue-600" />
@@ -331,6 +348,23 @@ function StaffShiftsHistory() {
           >
             This Month
           </button>
+        </div>
+      </div>
+
+      {/* Search Bar */}
+      <div className="mb-4">
+        <div className="relative">
+          <LuSearch
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+            size={18}
+          />
+          <input
+            type="text"
+            placeholder="Search by Order ID, staff name, or item..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+          />
         </div>
       </div>
 
@@ -469,10 +503,17 @@ function StaffShiftsHistory() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {transactions.map((tx) => {
-                const businessUnits = [...new Set(tx.items.map(i => i.business_unit))];
-                return (
-                  <tr key={tx.order_id} className="hover:bg-gray-50">
+              {filteredTransactions.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                    {searchQuery ? "No transactions match your search" : "No transactions found"}
+                  </td>
+                </tr>
+              ) : (
+                filteredTransactions.map((tx) => {
+                  const businessUnits = [...new Set(tx.items.map(i => i.business_unit))];
+                  return (
+                    <tr key={tx.order_id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">
                       #{tx.order_id}
                     </td>
@@ -538,18 +579,11 @@ function StaffShiftsHistory() {
                     </td>
                   </tr>
                 );
-              })}
+              })
+              )}
             </tbody>
           </table>
         </div>
-
-        {transactions.length === 0 && (
-          <div className="p-12 text-center text-gray-500">
-            <LuUsers size={48} className="mx-auto mb-4 text-gray-300" />
-            <p className="text-lg font-medium">No transactions found</p>
-            <p className="text-sm mt-2">Try adjusting your filters</p>
-          </div>
-        )}
 
         {/* Pagination */}
         {totalPages > 1 && (

@@ -7,7 +7,6 @@ import { useState, useEffect } from "react";
 import {
   LuLayoutDashboard,
   LuBoxes,
-  LuArmchair,
   LuCar,
   LuCoffee,
   LuSettings,
@@ -31,14 +30,8 @@ const managementItems = [
     icon: LuBoxes,
     roles: ["manager", "staff"],
   },
-  { name: "Sales", href: "/sales", icon: LuArmchair, roles: ["manager"] },
+  { name: "Sales", href: "/staff-shifts", icon: LuUsers, roles: ["manager"] },
   { name: "Reports", href: "/reports", icon: LuChartBar, roles: ["manager"] },
-  {
-    name: "Staff Shifts",
-    href: "/staff-shifts",
-    icon: LuUsers,
-    roles: ["manager"],
-  },
   {
     name: "Carwash Services",
     href: "/carwash-services",
