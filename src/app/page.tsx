@@ -12,8 +12,10 @@ import {
   LuClock,
   LuTrendingUp,
   LuCalendar,
+  LuHistory,
 } from "react-icons/lu";
 import { toast } from "react-toastify";
+import Link from "next/link";
 import {
   ResponsiveContainer,
   BarChart,
@@ -548,10 +550,19 @@ function Dashboard() {
 
                   {/* Recent Transactions */}
                   <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-                    <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-4 flex items-center gap-2">
-                      <span className="w-1 h-4 bg-blue-600 rounded-full"></span>
-                      Recent Transactions
-                    </h3>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide flex items-center gap-2">
+                        <span className="w-1 h-4 bg-blue-600 rounded-full"></span>
+                        Recent Transactions
+                      </h3>
+                      <Link
+                        href="/my-history"
+                        className="text-xs text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1 transition-colors"
+                      >
+                        <LuHistory size={14} />
+                        View All
+                      </Link>
+                    </div>
                     <div className="space-y-2">
                       {myShiftTransactions.length > 0 ? (
                         myShiftTransactions.map((tx) => (
