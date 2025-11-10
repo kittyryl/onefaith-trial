@@ -63,14 +63,12 @@ function ReportsPage() {
   const [carwashRevenue, setCarwashRevenue] = useState<RevenuePoint[]>([]);
 
   // Coffee analytics state
-  const [coffeeTopProducts, setCoffeeTopProducts] = useState<CoffeeTopProduct[]>(
-    []
-  );
+  const [coffeeTopProducts, setCoffeeTopProducts] = useState<
+    CoffeeTopProduct[]
+  >([]);
   const [coffeeRevenue, setCoffeeRevenue] = useState<RevenuePoint[]>([]);
 
-  const [activeTab, setActiveTab] = useState<"carwash" | "coffee">(
-    "carwash"
-  );
+  const [activeTab, setActiveTab] = useState<"carwash" | "coffee">("carwash");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -150,7 +148,9 @@ function ReportsPage() {
 
   return (
     <div className="p-4 sm:p-6 md:p-8 min-h-screen bg-linear-to-br from-gray-50 to-gray-100">
-      <h1 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6">Reports & Analytics</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6">
+        Reports & Analytics
+      </h1>
 
       {/* Tabs */}
       <div className="mb-6 border-b">
@@ -187,9 +187,14 @@ function ReportsPage() {
                 <LineChart data={carwashRevenue} margin={{ left: 8, right: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                  <YAxis tickFormatter={(v) => `₱${v}`} tick={{ fontSize: 12 }} />
+                  <YAxis
+                    tickFormatter={(v) => `₱${v}`}
+                    tick={{ fontSize: 12 }}
+                  />
                   <Tooltip
-                    formatter={(value: number) => `₱${Number(value).toFixed(2)}`}
+                    formatter={(value: number) =>
+                      `₱${Number(value).toFixed(2)}`
+                    }
                     labelFormatter={(label) => `Date: ${label}`}
                   />
                   <Legend />
@@ -223,7 +228,9 @@ function ReportsPage() {
                     <XAxis dataKey="name" hide />
                     <YAxis tickFormatter={(v) => `₱${v}`} />
                     <Tooltip
-                      formatter={(value: number) => `₱${Number(value).toFixed(2)}`}
+                      formatter={(value: number) =>
+                        `₱${Number(value).toFixed(2)}`
+                      }
                     />
                     <Bar dataKey="revenue" name="Revenue" fill="#10b981" />
                   </BarChart>
@@ -289,7 +296,9 @@ function ReportsPage() {
                     <tr key={idx} className="border-b hover:bg-gray-50">
                       <td className="px-4 py-2">{item.vehicle_type}</td>
                       <td className="px-4 py-2">{item.service_name}</td>
-                      <td className="px-4 py-2 text-right">{item.times_ordered}</td>
+                      <td className="px-4 py-2 text-right">
+                        {item.times_ordered}
+                      </td>
                       <td className="px-4 py-2 text-right">
                         ₱{Number(item.revenue).toFixed(2)}
                       </td>
@@ -353,9 +362,14 @@ function ReportsPage() {
                 <LineChart data={coffeeRevenue} margin={{ left: 8, right: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                  <YAxis tickFormatter={(v) => `₱${v}`} tick={{ fontSize: 12 }} />
+                  <YAxis
+                    tickFormatter={(v) => `₱${v}`}
+                    tick={{ fontSize: 12 }}
+                  />
                   <Tooltip
-                    formatter={(value: number) => `₱${Number(value).toFixed(2)}`}
+                    formatter={(value: number) =>
+                      `₱${Number(value).toFixed(2)}`
+                    }
                     labelFormatter={(label) => `Date: ${label}`}
                   />
                   <Legend />
@@ -377,12 +391,17 @@ function ReportsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={coffeeTopProducts} margin={{ left: 8, right: 8 }}>
+                  <BarChart
+                    data={coffeeTopProducts}
+                    margin={{ left: 8, right: 8 }}
+                  >
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="product_name" hide />
                     <YAxis tickFormatter={(v) => `₱${v}`} />
                     <Tooltip
-                      formatter={(value: number) => `₱${Number(value).toFixed(2)}`}
+                      formatter={(value: number) =>
+                        `₱${Number(value).toFixed(2)}`
+                      }
                     />
                     <Bar
                       dataKey="total_revenue"
@@ -407,7 +426,9 @@ function ReportsPage() {
                       <tr key={idx} className="border-b hover:bg-gray-50">
                         <td className="px-4 py-2">{p.product_name}</td>
                         <td className="px-4 py-2">{p.category}</td>
-                        <td className="px-4 py-2 text-right">{p.total_quantity}</td>
+                        <td className="px-4 py-2 text-right">
+                          {p.total_quantity}
+                        </td>
                         <td className="px-4 py-2 text-right">
                           ₱{Number(p.total_revenue).toFixed(2)}
                         </td>
@@ -416,7 +437,9 @@ function ReportsPage() {
                   </tbody>
                 </table>
                 {coffeeTopProducts.length === 0 && (
-                  <div className="text-center py-4 text-gray-500">No data available</div>
+                  <div className="text-center py-4 text-gray-500">
+                    No data available
+                  </div>
                 )}
               </div>
             </div>

@@ -196,7 +196,8 @@ function CarwashServices() {
 
     const headers = [
       "Order ID",
-      "Date/Time",
+      "Date",
+      "Time",
       "Vehicle",
       "Plate",
       "Customer Name",
@@ -207,23 +208,29 @@ function CarwashServices() {
       "Cancel Reason",
       "Total",
     ];
-    const rows = filteredOrders.map((order) => [
-      order.order_id,
-      new Date(order.created_at).toLocaleString("en-US"),
-      order.vehicle_type || "N/A",
-      order.plate_number || "N/A",
-      order.customer_name || "N/A",
-      order.customer_phone || "N/A",
-      `"${order.items
-        .map((i) => `${i.service_name} (${i.vehicle})`)
-        .join("; ")}"`,
-      order.status.replace("_", " ").toUpperCase(),
-      order.cancelled_at
-        ? new Date(order.cancelled_at).toLocaleString("en-US")
-        : "",
-      order.cancel_reason ? `"${order.cancel_reason}"` : "",
-      Number(order.total).toFixed(2),
-    ]);
+    const rows = filteredOrders.map((order) => {
+      const created = new Date(order.created_at);
+      const date = created.toLocaleDateString("en-US");
+      const time = created.toLocaleTimeString("en-US");
+      return [
+        order.order_id,
+        date,
+        time,
+        order.vehicle_type || "N/A",
+        order.plate_number || "N/A",
+        order.customer_name || "N/A",
+        order.customer_phone || "N/A",
+        `"${order.items
+          .map((i) => `${i.service_name} (${i.vehicle})`)
+          .join("; ")}"`,
+        order.status.replace("_", " ").toUpperCase(),
+        order.cancelled_at
+          ? new Date(order.cancelled_at).toLocaleString("en-US")
+          : "",
+        order.cancel_reason ? `"${order.cancel_reason}"` : "",
+        Number(order.total).toFixed(2),
+      ];
+    });
 
     const csvContent = [
       headers.join(","),

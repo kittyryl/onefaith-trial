@@ -611,9 +611,57 @@ function StockMovementModal({
 
 // --- MAIN PAGE COMPONENT ---
 function Inventory() {
+  // --- History Filter State and Logic ---
+  const [historyFilter, setHistoryFilter] = useState({
+    from: "",
+    to: "",
+    type: "",
+    ingredient: "",
+  });
+
+  const [history, setHistory] = useState<InventoryHistory[]>([]);
+  const filteredHistory = history.filter((h) => {
+    // Date filter
+    if (
+      historyFilter.from &&
+      new Date(h.created_at) < new Date(historyFilter.from)
+    )
+      return false;
+    if (
+      historyFilter.to &&
+      new Date(h.created_at) > new Date(historyFilter.to + "T23:59:59")
+    )
+      return false;
+    // Type filter
+    if (historyFilter.type && h.movement_type !== historyFilter.type)
+      return false;
+    // Ingredient filter (case-insensitive substring)
+    if (
+      historyFilter.ingredient &&
+      !(h.ingredient_name || "")
+        .toLowerCase()
+        .includes(historyFilter.ingredient.toLowerCase())
+    )
+      return false;
+    return true;
+  });
   const { isManager } = useAuth();
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"ingredients" | "history">(
+    "ingredients"
+  );
+  interface InventoryHistory {
+    id: number;
+    created_at: string;
+    product_name?: string;
+    ingredient_name?: string;
+    quantity: number;
+    movement_type: string;
+    user_name?: string;
+    note?: string;
+  }
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
 
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -708,6 +756,24 @@ function Inventory() {
       toast.error("Could not load all inventory data.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fetch inventory history
+  const fetchHistory = async () => {
+    setLoadingHistory(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/products/history`, {
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) throw new Error("Failed to fetch inventory history");
+      const data = await res.json();
+      setHistory(data);
+    } catch (e) {
+      toast.error("Could not load inventory history");
+      setHistory([]);
+    } finally {
+      setLoadingHistory(false);
     }
   };
 
@@ -835,9 +901,13 @@ function Inventory() {
   // Lifecycle
   /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
-    fetchAllData();
-  }, []);
-  /* eslint-enable react-hooks/exhaustive-deps */
+    if (activeTab === "ingredients") {
+      fetchAllData();
+    } else if (activeTab === "history") {
+      fetchHistory();
+    }
+    // eslint-disable-next-line
+  }, [activeTab]);
 
   // Note: Units are shown only in the Unit column; Required/Current show numbers only
 
@@ -907,7 +977,10 @@ function Inventory() {
 
   // Products are managed in Settings; no products list in Inventory
 
-  if (loading) return <PageLoader message="Loading Inventory…" color="amber" />;
+  if (activeTab === "ingredients" && loading)
+    return <PageLoader message="Loading Inventory…" color="amber" />;
+  if (activeTab === "history" && loadingHistory)
+    return <PageLoader message="Loading History…" color="amber" />;
 
   // --- RENDER FUNCTIONS ---
   // (These are defined inside the main component to access its state and handlers)
@@ -1049,6 +1122,32 @@ function Inventory() {
 
   // renderProductTable removed (POS products are now managed in Settings)
 
+  // Tab bar
+  const renderTabs = () => (
+    <div className="flex gap-2 mb-6">
+      <button
+        className={`px-5 py-2 rounded-t-lg font-semibold text-sm transition-colors border-b-2 ${
+          activeTab === "ingredients"
+            ? "bg-white border-amber-800 text-amber-800"
+            : "bg-gray-100 border-transparent text-gray-500 hover:text-amber-800"
+        }`}
+        onClick={() => setActiveTab("ingredients")}
+      >
+        Ingredients
+      </button>
+      <button
+        className={`px-5 py-2 rounded-t-lg font-semibold text-sm transition-colors border-b-2 ${
+          activeTab === "history"
+            ? "bg-white border-amber-800 text-amber-800"
+            : "bg-gray-100 border-transparent text-gray-500 hover:text-amber-800"
+        }`}
+        onClick={() => setActiveTab("history")}
+      >
+        History
+      </button>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100 p-4 sm:p-6 lg:p-8">
       {/* Modal Rendering: Delete Confirmation */}
@@ -1097,83 +1196,162 @@ function Inventory() {
             <LuPackage size={28} className="mr-2 md:mr-3 text-gray-700" />
             Inventory Management
           </h1>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={exportIngredientsToCSV}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center hover:bg-blue-700 transition-colors shadow-sm"
-            >
-              <LuDownload size={18} className="mr-2" />
-              Export CSV
-            </button>
-            {isManager() && (
-              <button
-                onClick={openNewForm}
-                className="bg-amber-800 text-white px-4 py-2 rounded-lg flex items-center hover:bg-amber-700 transition-colors shadow-sm"
-              >
-                <LuPlus size={18} className="mr-2" />
-                Add Ingredient
-              </button>
-            )}
-          </div>
         </div>
-
-        {/* Search and Filters */}
-        <div className="mb-6 flex flex-col gap-3">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <LuSearch
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                size={18}
-              />
-              <input
-                type="text"
-                placeholder={`Search ingredients...`}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-              />
-            </div>
-
-            {
-              <button
-                onClick={() => setShowLowStockOnly(!showLowStockOnly)}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  showLowStockOnly
-                    ? "bg-red-100 text-red-800 border-2 border-red-300"
-                    : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-                }`}
-              >
-                {showLowStockOnly ? "✓ Low Stock Only" : "Low Stock Only"}
-              </button>
-            }
-          </div>
-
-          {/* Category Filter for Ingredients */}
-          {
-            <div className="flex items-center gap-3 overflow-x-auto pb-2">
-              {[
-                "All",
-                ...Array.from(new Set(ingredients.map((i) => i.category))),
-              ].map((category) => (
+        {renderTabs()}
+        {activeTab === "ingredients" && (
+          <>
+            <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div className="flex gap-2">
+                {isManager() && (
+                  <button
+                    className="inline-flex items-center px-4 py-2 bg-amber-700 text-white rounded-lg font-semibold shadow hover:bg-amber-800 transition-colors"
+                    onClick={() => {
+                      setIsFormModalOpen(true);
+                      setItemToEdit(null);
+                    }}
+                  >
+                    <LuPlus className="mr-2" /> Add Ingredient
+                  </button>
+                )}
                 <button
-                  key={category}
-                  onClick={() => setSelectedIngredientCategory(category)}
-                  className={`px-5 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                    selectedIngredientCategory === category
-                      ? "bg-amber-800 text-white"
-                      : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-300"
-                  }`}
+                  className="inline-flex items-center px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold shadow hover:bg-gray-300 transition-colors"
+                  onClick={exportIngredientsToCSV}
                 >
-                  {category}
+                  <LuDownload className="mr-2" /> Export CSV
                 </button>
-              ))}
+              </div>
+              {/* ...search/filter UI... */}
             </div>
-          }
-        </div>
+            <div className="max-w-7xl mx-auto">{renderIngredientTable()}</div>
+          </>
+        )}
+        {activeTab === "history" && (
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+            <h2 className="text-xl font-bold mb-4 text-amber-800">
+              Inventory History
+            </h2>
+            {/* Filter Controls */}
+            <div className="flex flex-wrap gap-4 mb-4 items-end">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  From
+                </label>
+                <input
+                  type="date"
+                  className="border rounded px-2 py-1"
+                  value={historyFilter.from}
+                  onChange={(e) =>
+                    setHistoryFilter((f) => ({ ...f, from: e.target.value }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  To
+                </label>
+                <input
+                  type="date"
+                  className="border rounded px-2 py-1"
+                  value={historyFilter.to}
+                  onChange={(e) =>
+                    setHistoryFilter((f) => ({ ...f, to: e.target.value }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Type
+                </label>
+                <select
+                  className="border rounded px-2 py-1"
+                  value={historyFilter.type}
+                  onChange={(e) =>
+                    setHistoryFilter((f) => ({ ...f, type: e.target.value }))
+                  }
+                >
+                  <option value="">All</option>
+                  <option value="IN">IN</option>
+                  <option value="OUT">OUT</option>
+                  <option value="AUDIT">AUDIT</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Ingredient
+                </label>
+                <input
+                  type="text"
+                  className="border rounded px-2 py-1"
+                  placeholder="Name..."
+                  value={historyFilter.ingredient}
+                  onChange={(e) =>
+                    setHistoryFilter((f) => ({
+                      ...f,
+                      ingredient: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Product
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Qty
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    User
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Note
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredHistory.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-10 text-gray-400">
+                      No inventory history found.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredHistory.map((h) => (
+                    <tr key={h.id} className="hover:bg-gray-50/80">
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                        {new Date(h.created_at).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                        {h.ingredient_name || "-"}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                        {h.quantity}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                        {h.movement_type}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                        {h.user_name || "-"}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                        {h.note || ""}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
-
-      {/* Table Content */}
-      <div className="max-w-7xl mx-auto">{renderIngredientTable()}</div>
     </div>
   );
 }

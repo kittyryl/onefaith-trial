@@ -37,6 +37,7 @@ import { useAuth } from "@/contexts/AuthContext";
 interface SalesSummary {
   order_id: string;
   total: string;
+  payment_method?: string;
   items_summary: {
     business_unit: "Coffee" | "Carwash";
   }[];
@@ -88,7 +89,7 @@ interface MyShiftSummaryResp {
     user_id: number;
     start_time: string;
     end_time: string | null;
-    status: 'active' | 'ended';
+    status: "active" | "ended";
   } | null;
   totals: MyShiftTotals;
 }
@@ -116,8 +117,11 @@ function Dashboard() {
   const [inProgressServices, setInProgressServices] = useState<
     CarwashService[]
   >([]);
-  const [myShiftSummary, setMyShiftSummary] = useState<MyShiftSummaryResp | null>(null);
-  const [myShiftTransactions, setMyShiftTransactions] = useState<MyShiftTransaction[]>([]);
+  const [myShiftSummary, setMyShiftSummary] =
+    useState<MyShiftSummaryResp | null>(null);
+  const [myShiftTransactions, setMyShiftTransactions] = useState<
+    MyShiftTransaction[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [startingShift, setStartingShift] = useState(false);
   const [endingShift, setEndingShift] = useState(false);
@@ -131,17 +135,26 @@ function Dashboard() {
       if (isManager()) {
         // Manager: fetch sales, inventory, carwash services AND my-shift endpoints
         console.log("[Dashboard] Fetching manager data including shift...");
-        const [summaryRes, chartRes, ingredientsRes, carwashRes] = await Promise.all([
-          fetch(`${API_URL}/api/reports/summary`, { headers: getAuthHeaders() }),
-          fetch(`${API_URL}/api/reports/sales-by-business-by-day`, { headers: getAuthHeaders() }),
-          fetch(`${API_URL}/api/ingredients`, { headers: getAuthHeaders() }),
-          fetch(`${API_URL}/api/carwash/services`, { headers: getAuthHeaders() }),
-        ]);
+        const [summaryRes, chartRes, ingredientsRes, carwashRes] =
+          await Promise.all([
+            fetch(`${API_URL}/api/reports/summary`, {
+              headers: getAuthHeaders(),
+            }),
+            fetch(`${API_URL}/api/reports/sales-by-business-by-day`, {
+              headers: getAuthHeaders(),
+            }),
+            fetch(`${API_URL}/api/ingredients`, { headers: getAuthHeaders() }),
+            fetch(`${API_URL}/api/carwash/services`, {
+              headers: getAuthHeaders(),
+            }),
+          ]);
 
         if (!summaryRes.ok) throw new Error("Failed to fetch sales summary.");
         if (!chartRes.ok) throw new Error("Failed to fetch chart data.");
-        if (!ingredientsRes.ok) throw new Error("Failed to fetch inventory data.");
-        if (!carwashRes.ok) throw new Error("Failed to fetch carwash services.");
+        if (!ingredientsRes.ok)
+          throw new Error("Failed to fetch inventory data.");
+        if (!carwashRes.ok)
+          throw new Error("Failed to fetch carwash services.");
 
         const summary: SalesSummary[] = await summaryRes.json();
         const chart: SalesByBusinessByDay[] = await chartRes.json();
@@ -166,15 +179,23 @@ function Dashboard() {
         // Manager My Shift endpoints
         try {
           const [myShiftSummaryRes, myShiftTxRes] = await Promise.all([
-            fetch(`${API_URL}/api/reports/my-shift/summary`, { headers: getAuthHeaders() }),
-            fetch(`${API_URL}/api/reports/my-shift/transactions?size=5`, { headers: getAuthHeaders() }),
+            fetch(`${API_URL}/api/reports/my-shift/summary`, {
+              headers: getAuthHeaders(),
+            }),
+            fetch(`${API_URL}/api/reports/my-shift/transactions?size=5`, {
+              headers: getAuthHeaders(),
+            }),
           ]);
           if (myShiftSummaryRes.ok) {
             const summaryJson = await myShiftSummaryRes.json();
             console.log("[MyShift][Manager] Summary response:", summaryJson);
             setMyShiftSummary(summaryJson);
           } else {
-            console.warn("[MyShift][Manager] Summary failed:", myShiftSummaryRes.status, await myShiftSummaryRes.text());
+            console.warn(
+              "[MyShift][Manager] Summary failed:",
+              myShiftSummaryRes.status,
+              await myShiftSummaryRes.text()
+            );
             setMyShiftSummary(null);
           }
           if (myShiftTxRes.ok) {
@@ -182,7 +203,11 @@ function Dashboard() {
             console.log("[MyShift][Manager] Transactions response:", txJson);
             setMyShiftTransactions(txJson.transactions || []);
           } else {
-            console.warn("[MyShift][Manager] Transactions failed:", myShiftTxRes.status, await myShiftTxRes.text());
+            console.warn(
+              "[MyShift][Manager] Transactions failed:",
+              myShiftTxRes.status,
+              await myShiftTxRes.text()
+            );
             setMyShiftTransactions([]);
           }
         } catch (e) {
@@ -220,22 +245,30 @@ function Dashboard() {
               headers: getAuthHeaders(),
             }),
           ]);
-          
+
           if (myShiftSummaryRes.ok) {
             const summaryJson = await myShiftSummaryRes.json();
             console.log("[MyShift] Summary response:", summaryJson);
             setMyShiftSummary(summaryJson);
           } else {
-            console.warn("[MyShift] Summary failed:", myShiftSummaryRes.status, await myShiftSummaryRes.text());
+            console.warn(
+              "[MyShift] Summary failed:",
+              myShiftSummaryRes.status,
+              await myShiftSummaryRes.text()
+            );
             setMyShiftSummary(null);
           }
-          
+
           if (myShiftTxRes.ok) {
             const txJson = await myShiftTxRes.json();
             console.log("[MyShift] Transactions response:", txJson);
             setMyShiftTransactions(txJson.transactions || []);
           } else {
-            console.warn("[MyShift] Transactions failed:", myShiftTxRes.status, await myShiftTxRes.text());
+            console.warn(
+              "[MyShift] Transactions failed:",
+              myShiftTxRes.status,
+              await myShiftTxRes.text()
+            );
             setMyShiftTransactions([]);
           }
         } catch (e) {
@@ -277,14 +310,15 @@ function Dashboard() {
   const handleStartShift = async () => {
     try {
       setStartingShift(true);
-      const API_URL = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
+      const API_URL =
+        process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
       const res = await fetch(`${API_URL}/api/shifts/start`, {
         method: "POST",
         headers: getAuthHeaders(),
       });
-      
+
       const data = await res.json();
-      
+
       if (!res.ok) {
         throw new Error(data.message || data.error || "Failed to start shift");
       }
@@ -302,15 +336,16 @@ function Dashboard() {
     const notes = prompt("Add any notes for this shift (optional):");
     try {
       setEndingShift(true);
-      const API_URL = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
+      const API_URL =
+        process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
       const res = await fetch(`${API_URL}/api/shifts/end`, {
         method: "POST",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ notes: notes || null }),
       });
-      
+
       const data = await res.json();
-      
+
       if (!res.ok) {
         throw new Error(data.message || data.error || "Failed to end shift");
       }
@@ -393,24 +428,54 @@ function Dashboard() {
       {isManager() && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mb-6 sm:mb-8">
           <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
-            <p className="text-xs sm:text-sm text-gray-500 mb-1">Total Revenue</p>
+            <p className="text-xs sm:text-sm text-gray-500 mb-1">
+              Total Revenue
+            </p>
             <div className="flex items-baseline gap-1">
-              <span className="text-emerald-600 text-base sm:text-lg shrink-0">₱</span>
-              <span className="text-xl sm:text-2xl md:text-3xl font-bold tabular-nums tracking-tight break-all leading-tight" title={`₱${formattedRevenue}`}>{formattedRevenue}</span>
+              <span className="text-emerald-600 text-base sm:text-lg shrink-0">
+                ₱
+              </span>
+              <span
+                className="text-xl sm:text-2xl md:text-3xl font-bold tabular-nums tracking-tight break-all leading-tight"
+                title={`₱${formattedRevenue}`}
+              >
+                {formattedRevenue}
+              </span>
             </div>
           </div>
           <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow flex items-center">
-            <div className="mr-3 sm:mr-4 flex items-center justify-center w-10 h-10 rounded-full bg-gray-100"><LuFileText size={22} className="text-gray-600" /></div>
-            <div className="min-w-0"><p className="text-xs sm:text-sm text-gray-500">Total Orders</p><p className="text-xl sm:text-2xl lg:text-3xl font-bold mt-1">{totalOrders}</p></div>
+            <div className="mr-3 sm:mr-4 flex items-center justify-center w-10 h-10 rounded-full bg-gray-100">
+              <LuFileText size={22} className="text-gray-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm text-gray-500">Total Orders</p>
+              <p className="text-xl sm:text-2xl lg:text-3xl font-bold mt-1">
+                {totalOrders}
+              </p>
+            </div>
           </div>
-            <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow flex items-center">
-              <div className="mr-3 sm:mr-4 flex items-center justify-center w-10 h-10 rounded-full bg-amber-50"><LuCoffee size={22} className="text-amber-800" /></div>
-              <div className="min-w-0"><p className="text-xs sm:text-sm text-gray-500">Coffee Orders</p><p className="text-xl sm:text-2xl lg:text-3xl font-bold mt-1">{totalCoffeeOrders}</p></div>
+          <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow flex items-center">
+            <div className="mr-3 sm:mr-4 flex items-center justify-center w-10 h-10 rounded-full bg-amber-50">
+              <LuCoffee size={22} className="text-amber-800" />
             </div>
-            <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow flex items-center">
-              <div className="mr-3 sm:mr-4 flex items-center justify-center w-10 h-10 rounded-full bg-blue-50"><LuCar size={22} className="text-blue-600" /></div>
-              <div className="min-w-0"><p className="text-xs sm:text-sm text-gray-500">Carwash Orders</p><p className="text-xl sm:text-2xl lg:text-3xl font-bold mt-1">{totalCarwashOrders}</p></div>
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm text-gray-500">Coffee Orders</p>
+              <p className="text-xl sm:text-2xl lg:text-3xl font-bold mt-1">
+                {totalCoffeeOrders}
+              </p>
             </div>
+          </div>
+          <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow flex items-center">
+            <div className="mr-3 sm:mr-4 flex items-center justify-center w-10 h-10 rounded-full bg-blue-50">
+              <LuCar size={22} className="text-blue-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm text-gray-500">Carwash Orders</p>
+              <p className="text-xl sm:text-2xl lg:text-3xl font-bold mt-1">
+                {totalCarwashOrders}
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -418,166 +483,229 @@ function Dashboard() {
       <div className="mb-6 sm:mb-8">
         {!isManager() && (
           <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm mb-4">
-            <p className="text-sm text-gray-600">Sales metrics are visible to managers.</p>
+            <p className="text-sm text-gray-600">
+              Sales metrics are visible to managers.
+            </p>
           </div>
         )}
         <div className="bg-linear-to-br from-blue-50 to-indigo-50 p-6 sm:p-8 rounded-2xl border border-blue-200 shadow-lg">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="bg-blue-600 text-white p-3 rounded-xl shadow-md">
-                    <LuClock size={28} />
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-600 text-white p-3 rounded-xl shadow-md">
+                <LuClock size={28} />
+              </div>
+              <div>
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
+                  My Shift
+                </h2>
+                <p className="text-sm text-gray-600">
+                  {myShiftSummary?.shift ? (
+                    <>
+                      <LuCalendar className="inline mr-1" size={14} />
+                      {new Date(
+                        myShiftSummary.shift.start_time
+                      ).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </>
+                  ) : (
+                    "No active shift today"
+                  )}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {myShiftSummary?.shift && (
+                <div className="text-right mr-4">
+                  <div className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-1">
+                    Status
                   </div>
-                  <div>
-                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900">My Shift</h2>
-                    <p className="text-sm text-gray-600">
-                      {myShiftSummary?.shift ? (
-                        <>
-                          <LuCalendar className="inline mr-1" size={14} />
-                          {new Date(myShiftSummary.shift.start_time).toLocaleDateString('en-US', { 
-                            month: 'short', 
-                            day: 'numeric',
-                            year: 'numeric'
-                          })}
-                        </>
-                      ) : (
-                        'No active shift today'
-                      )}
+                  <span
+                    className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${
+                      myShiftSummary.shift.status === "active"
+                        ? "bg-green-100 text-green-800"
+                        : "bg-gray-100 text-gray-800"
+                    }`}
+                  >
+                    {myShiftSummary.shift.status === "active"
+                      ? "● Active"
+                      : "● Ended"}
+                  </span>
+                </div>
+              )}
+              {/* Button logic: show End if active shift exists, otherwise show Start */}
+              {myShiftSummary?.shift?.status === "active" ? (
+                <button
+                  onClick={handleEndShift}
+                  disabled={endingShift}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
+                >
+                  {endingShift ? <Spinner /> : "End Shift"}
+                </button>
+              ) : !myShiftSummary?.shift ||
+                myShiftSummary.shift.status === "ended" ? (
+                <button
+                  onClick={handleStartShift}
+                  disabled={startingShift}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
+                >
+                  {startingShift ? <Spinner /> : "Start Shift"}
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          {myShiftSummary &&
+          myShiftSummary.totals &&
+          myShiftSummary.totals.orderCount > 0 ? (
+            <>
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                  <div className="flex items-center gap-2 mb-2">
+                    <LuFileText size={18} className="text-gray-500" />
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                      Orders
                     </p>
                   </div>
+                  <p className="text-3xl font-bold text-gray-900">
+                    {myShiftSummary.totals.orderCount}
+                  </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  {myShiftSummary?.shift && (
-                    <div className="text-right mr-4">
-                      <div className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-1">Status</div>
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${
-                        myShiftSummary.shift.status === 'active' 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {myShiftSummary.shift.status === 'active' ? '● Active' : '● Ended'}
-                      </span>
-                    </div>
-                  )}
-                  {/* Button logic: show End if active shift exists, otherwise show Start */}
-                  {myShiftSummary?.shift?.status === 'active' ? (
-                    <button
-                      onClick={handleEndShift}
-                      disabled={endingShift}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
-                    >
-                      {endingShift ? <Spinner /> : 'End Shift'}
-                    </button>
-                  ) : !myShiftSummary?.shift || myShiftSummary.shift.status === 'ended' ? (
-                    <button
-                      onClick={handleStartShift}
-                      disabled={startingShift}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
-                    >
-                      {startingShift ? <Spinner /> : 'Start Shift'}
-                    </button>
-                  ) : null}
+
+                <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                  <div className="flex items-center gap-2 mb-2">
+                    <LuTrendingUp size={18} className="text-emerald-600" />
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                      Total Sales
+                    </p>
+                  </div>
+                  <p className="text-2xl font-bold text-emerald-600">
+                    ₱
+                    {Number(
+                      myShiftSummary.totals.totalSales || 0
+                    ).toLocaleString("en-PH", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </p>
+                </div>
+
+                <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                  <div className="flex items-center gap-2 mb-2">
+                    <LuCoffee size={18} className="text-amber-700" />
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                      Coffee
+                    </p>
+                  </div>
+                  <p className="text-xl font-bold text-amber-700">
+                    ₱
+                    {Number(
+                      myShiftSummary.totals.byBusinessUnit?.Coffee || 0
+                    ).toLocaleString("en-PH", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </p>
+                </div>
+
+                <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                  <div className="flex items-center gap-2 mb-2">
+                    <LuCar size={18} className="text-blue-600" />
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                      Carwash
+                    </p>
+                  </div>
+                  <p className="text-xl font-bold text-blue-600">
+                    ₱
+                    {Number(
+                      myShiftSummary.totals.byBusinessUnit?.Carwash || 0
+                    ).toLocaleString("en-PH", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </p>
                 </div>
               </div>
 
-              {myShiftSummary && myShiftSummary.totals && myShiftSummary.totals.orderCount > 0 ? (
-                <>
-                  {/* Stats Grid */}
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                      <div className="flex items-center gap-2 mb-2">
-                        <LuFileText size={18} className="text-gray-500" />
-                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Orders</p>
-                      </div>
-                      <p className="text-3xl font-bold text-gray-900">{myShiftSummary.totals.orderCount}</p>
-                    </div>
-                    
-                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                      <div className="flex items-center gap-2 mb-2">
-                        <LuTrendingUp size={18} className="text-emerald-600" />
-                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total Sales</p>
-                      </div>
-                      <p className="text-2xl font-bold text-emerald-600">
-                        ₱{Number(myShiftSummary.totals.totalSales || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </p>
-                    </div>
-                    
-                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                      <div className="flex items-center gap-2 mb-2">
-                        <LuCoffee size={18} className="text-amber-700" />
-                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Coffee</p>
-                      </div>
-                      <p className="text-xl font-bold text-amber-700">
-                        ₱{Number(myShiftSummary.totals.byBusinessUnit?.Coffee || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </p>
-                    </div>
-                    
-                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                      <div className="flex items-center gap-2 mb-2">
-                        <LuCar size={18} className="text-blue-600" />
-                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Carwash</p>
-                      </div>
-                      <p className="text-xl font-bold text-blue-600">
-                        ₱{Number(myShiftSummary.totals.byBusinessUnit?.Carwash || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Recent Transactions */}
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide flex items-center gap-2">
-                        <span className="w-1 h-4 bg-blue-600 rounded-full"></span>
-                        Recent Transactions
-                      </h3>
-                      <Link
-                        href="/my-history"
-                        className="text-xs text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1 transition-colors"
-                      >
-                        <LuHistory size={14} />
-                        View All
-                      </Link>
-                    </div>
-                    <div className="space-y-2">
-                      {myShiftTransactions.length > 0 ? (
-                        myShiftTransactions.map((tx) => (
-                          <div key={tx.order_id} className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition-colors border border-gray-100">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-sm font-semibold text-gray-900">#{tx.order_id}</span>
-                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                                  tx.payment_method === 'Cash' 
-                                    ? 'bg-green-100 text-green-700' 
-                                    : 'bg-blue-100 text-blue-700'
-                                }`}>
-                                  {tx.payment_method}
-                                </span>
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                {new Date(tx.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-lg font-bold text-gray-900">
-                                ₱{Number(tx.total).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-gray-500 text-center py-4">No transactions yet</p>
-                      )}
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
-                  <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
-                    <LuFileText size={32} className="text-gray-400" />
-                  </div>
-                  <p className="text-gray-600 font-medium mb-1">No transactions yet</p>
-                  <p className="text-sm text-gray-500">Start taking orders to see your shift stats!</p>
+              {/* Recent Transactions */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide flex items-center gap-2">
+                    <span className="w-1 h-4 bg-blue-600 rounded-full"></span>
+                    Recent Transactions
+                  </h3>
+                  <Link
+                    href="/my-history"
+                    className="text-xs text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1 transition-colors"
+                  >
+                    <LuHistory size={14} />
+                    View All
+                  </Link>
                 </div>
-              )}
+                <div className="space-y-2">
+                  {myShiftTransactions.length > 0 ? (
+                    myShiftTransactions.map((tx) => (
+                      <div
+                        key={tx.order_id}
+                        className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition-colors border border-gray-100"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm font-semibold text-gray-900">
+                              #{tx.order_id}
+                            </span>
+                            <span
+                              className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                tx.payment_method === "Cash"
+                                  ? "bg-green-100 text-green-700"
+                                  : "bg-blue-100 text-blue-700"
+                              }`}
+                            >
+                              {tx.payment_method}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {new Date(tx.created_at).toLocaleTimeString(
+                              "en-US",
+                              { hour: "2-digit", minute: "2-digit" }
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-lg font-bold text-gray-900">
+                            ₱
+                            {Number(tx.total).toLocaleString("en-PH", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500 text-center py-4">
+                      No transactions yet
+                    </p>
+                  )}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
+                <LuFileText size={32} className="text-gray-400" />
+              </div>
+              <p className="text-gray-600 font-medium mb-1">
+                No transactions yet
+              </p>
+              <p className="text-sm text-gray-500">
+                Start taking orders to see your shift stats!
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

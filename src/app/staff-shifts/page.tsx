@@ -1,7 +1,18 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { LuUsers, LuFilter, LuDownload, LuCalendar, LuClock, LuDollarSign, LuShoppingCart, LuCoffee, LuCar, LuSearch } from "react-icons/lu";
+import {
+  LuUsers,
+  LuFilter,
+  LuDownload,
+  LuCalendar,
+  LuClock,
+  LuDollarSign,
+  LuShoppingCart,
+  LuCoffee,
+  LuCar,
+  LuSearch,
+} from "react-icons/lu";
 import { toast } from "react-toastify";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import ManagerOnlyRoute from "@/components/ManagerOnlyRoute";
@@ -45,8 +56,12 @@ function StaffShiftsHistory() {
     coffeeItemRevenue: number;
     carwashItemRevenue: number;
   }
-  const [aggregates, setAggregates] = useState<Aggregates>({ totalRevenue: 0, coffeeItemRevenue: 0, carwashItemRevenue: 0 });
-  
+  const [aggregates, setAggregates] = useState<Aggregates>({
+    totalRevenue: 0,
+    coffeeItemRevenue: 0,
+    carwashItemRevenue: 0,
+  });
+
   // Filters
   const [selectedStaff, setSelectedStaff] = useState<string>("");
   const [selectedBusinessUnit, setSelectedBusinessUnit] = useState<string>("");
@@ -54,49 +69,12 @@ function StaffShiftsHistory() {
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
-  
+
   // Pagination
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const pageSize = 50;
-
-  // Quick date filters
-  const setQuickDateFilter = (filter: string) => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    
-    switch (filter) {
-      case "today":
-        setStartDate(today.toISOString().split("T")[0]);
-        setEndDate(today.toISOString().split("T")[0]);
-        break;
-      case "yesterday":
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-        setStartDate(yesterday.toISOString().split("T")[0]);
-        setEndDate(yesterday.toISOString().split("T")[0]);
-        break;
-      case "week":
-        const weekStart = new Date(today);
-        weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-        setStartDate(weekStart.toISOString().split("T")[0]);
-        setEndDate(today.toISOString().split("T")[0]);
-        break;
-      case "last7":
-        const last7 = new Date(today);
-        last7.setDate(last7.getDate() - 6);
-        setStartDate(last7.toISOString().split("T")[0]);
-        setEndDate(today.toISOString().split("T")[0]);
-        break;
-      case "month":
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        setStartDate(monthStart.toISOString().split("T")[0]);
-        setEndDate(today.toISOString().split("T")[0]);
-        break;
-    }
-    setPage(1);
-  };
 
   // Fetch users for filter
   useEffect(() => {
@@ -124,9 +102,10 @@ function StaffShiftsHistory() {
         page: page.toString(),
         size: pageSize.toString(),
       });
-      
+
       if (selectedStaff) params.append("staffId", selectedStaff);
-      if (selectedBusinessUnit) params.append("businessUnit", selectedBusinessUnit);
+      if (selectedBusinessUnit)
+        params.append("businessUnit", selectedBusinessUnit);
       if (selectedPayment) params.append("payment", selectedPayment);
       if (startDate) params.append("startDate", startDate);
       if (endDate) params.append("endDate", endDate);
@@ -137,7 +116,7 @@ function StaffShiftsHistory() {
       );
 
       if (!res.ok) throw new Error("Failed to fetch transactions");
-      
+
       const data = await res.json();
       setTransactions(data.transactions || []);
       setTotalPages(data.totalPages || 1);
@@ -153,7 +132,14 @@ function StaffShiftsHistory() {
     } finally {
       setLoading(false);
     }
-  }, [page, selectedStaff, selectedBusinessUnit, selectedPayment, startDate, endDate]);
+  }, [
+    page,
+    selectedStaff,
+    selectedBusinessUnit,
+    selectedPayment,
+    startDate,
+    endDate,
+  ]);
 
   useEffect(() => {
     fetchTransactions();
@@ -174,11 +160,13 @@ function StaffShiftsHistory() {
       "Payment",
       "Total",
       "Shift Start",
-      "Shift End"
+      "Shift End",
     ];
 
     const rows = transactions.map((tx) => {
-      const businessUnits = [...new Set(tx.items.map(i => i.business_unit))].join(", ");
+      const businessUnits = [
+        ...new Set(tx.items.map((i) => i.business_unit)),
+      ].join(", ");
       const date = new Date(tx.created_at);
       return [
         tx.order_id,
@@ -187,22 +175,24 @@ function StaffShiftsHistory() {
         tx.full_name,
         businessUnits,
         tx.payment_method,
-        tx.total.toFixed(2),
+        (typeof tx.total === "number" ? tx.total : Number(tx.total)).toFixed(2),
         tx.shift_start ? new Date(tx.shift_start).toLocaleString() : "N/A",
-        tx.shift_end ? new Date(tx.shift_end).toLocaleString() : "Active"
+        tx.shift_end ? new Date(tx.shift_end).toLocaleString() : "Active",
       ];
     });
 
     const csvContent = [
       headers.join(","),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
     ].join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `staff-shift-transactions-${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `staff-shift-transactions-${
+      new Date().toISOString().split("T")[0]
+    }.csv`;
     link.click();
     URL.revokeObjectURL(url);
     toast.success("CSV exported successfully!");
@@ -224,37 +214,49 @@ function StaffShiftsHistory() {
   }, [searchQuery]);
 
   if (loading && transactions.length === 0) {
-    return <PageLoader message="Loading Sales & Staff History..." color="blue" />;
+    return (
+      <PageLoader message="Loading Sales & Staff History..." color="blue" />
+    );
   }
 
   // Filter transactions based on search query
   const filteredTransactions = transactions.filter((tx) => {
     if (!searchQuery) return true;
-    
+
     const query = searchQuery.toLowerCase();
     const matchesOrderId = tx.order_id.toLowerCase().includes(query);
-    const matchesStaff = tx.full_name.toLowerCase().includes(query) || 
-                         tx.username.toLowerCase().includes(query);
-    const matchesItem = tx.items.some(item => 
+    const matchesStaff =
+      tx.full_name.toLowerCase().includes(query) ||
+      tx.username.toLowerCase().includes(query);
+    const matchesItem = tx.items.some((item) =>
       item.item_type.toLowerCase().includes(query)
     );
-    
+
     return matchesOrderId || matchesStaff || matchesItem;
   });
 
   // Calculate stats from filtered transactions
-  const totalRevenue = filteredTransactions.reduce((sum, tx) => sum + Number(tx.total), 0);
+  const totalRevenue = filteredTransactions.reduce(
+    (sum, tx) => sum + Number(tx.total),
+    0
+  );
   // Per-item revenue per business unit to avoid overstating mixed orders
-  const coffeeRevenue = filteredTransactions.reduce((sum, tx) =>
-    sum + tx.items
-      .filter((i) => i.business_unit === "Coffee")
-      .reduce((s, i) => s + Number(i.line_total), 0)
-  , 0);
-  const carwashRevenue = filteredTransactions.reduce((sum, tx) =>
-    sum + tx.items
-      .filter((i) => i.business_unit === "Carwash")
-      .reduce((s, i) => s + Number(i.line_total), 0)
-  , 0);
+  const coffeeRevenue = filteredTransactions.reduce(
+    (sum, tx) =>
+      sum +
+      tx.items
+        .filter((i) => i.business_unit === "Coffee")
+        .reduce((s, i) => s + Number(i.line_total), 0),
+    0
+  );
+  const carwashRevenue = filteredTransactions.reduce(
+    (sum, tx) =>
+      sum +
+      tx.items
+        .filter((i) => i.business_unit === "Carwash")
+        .reduce((s, i) => s + Number(i.line_total), 0),
+    0
+  );
 
   return (
     <div className="p-4 sm:p-6 md:p-8 min-h-screen bg-linear-to-br from-gray-50 to-gray-100">
@@ -263,9 +265,11 @@ function StaffShiftsHistory() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-3">
             <LuUsers size={32} className="text-blue-600" />
-            Sales & Staff Shifts
+            Sales
           </h1>
-          <p className="text-sm text-gray-600 mt-1">View all transactions with staff and shift details</p>
+          <p className="text-sm text-gray-600 mt-1">
+            View all transactions with staff and shift details
+          </p>
         </div>
         <button
           onClick={handleExportCSV}
@@ -282,9 +286,15 @@ function StaffShiftsHistory() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 font-medium">Displayed Transactions</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{filteredTransactions.length}</p>
-              {searchQuery && <p className="text-xs text-gray-500 mt-1">of {total} total</p>}
+              <p className="text-sm text-gray-600 font-medium">
+                Displayed Transactions
+              </p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">
+                {filteredTransactions.length}
+              </p>
+              {searchQuery && (
+                <p className="text-xs text-gray-500 mt-1">of {total} total</p>
+              )}
             </div>
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
               <LuShoppingCart size={24} className="text-blue-600" />
@@ -295,9 +305,15 @@ function StaffShiftsHistory() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 font-medium">Filtered Page Revenue</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">₱{totalRevenue.toFixed(2)}</p>
-            <p className="text-xs text-gray-500 mt-1">All Matching: ₱{aggregates.totalRevenue.toFixed(2)}</p>
+              <p className="text-sm text-gray-600 font-medium">
+                Filtered Page Revenue
+              </p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">
+                ₱{totalRevenue.toFixed(2)}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                All Matching: ₱{aggregates.totalRevenue.toFixed(2)}
+              </p>
             </div>
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
               <LuDollarSign size={24} className="text-green-600" />
@@ -308,9 +324,15 @@ function StaffShiftsHistory() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 font-medium">Coffee Item Sales</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">₱{coffeeRevenue.toFixed(2)}</p>
-            <p className="text-xs text-gray-500 mt-1">All Matching: ₱{aggregates.coffeeItemRevenue.toFixed(2)}</p>
+              <p className="text-sm text-gray-600 font-medium">
+                Coffee Item Sales
+              </p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">
+                ₱{coffeeRevenue.toFixed(2)}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                All Matching: ₱{aggregates.coffeeItemRevenue.toFixed(2)}
+              </p>
               {/* Optional: number of orders contributing to coffee sales can be derived if needed */}
             </div>
             <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
@@ -322,9 +344,15 @@ function StaffShiftsHistory() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 font-medium">Carwash Item Sales</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">₱{carwashRevenue.toFixed(2)}</p>
-            <p className="text-xs text-gray-500 mt-1">All Matching: ₱{aggregates.carwashItemRevenue.toFixed(2)}</p>
+              <p className="text-sm text-gray-600 font-medium">
+                Carwash Item Sales
+              </p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">
+                ₱{carwashRevenue.toFixed(2)}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                All Matching: ₱{aggregates.carwashItemRevenue.toFixed(2)}
+              </p>
               {/* Optional: number of orders contributing to carwash sales can be derived if needed */}
             </div>
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -335,44 +363,6 @@ function StaffShiftsHistory() {
       </div>
 
       {/* Quick Date Filters */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-4">
-        <div className="flex items-center gap-2 mb-3">
-          <LuCalendar size={18} className="text-gray-600" />
-          <h3 className="text-sm font-semibold text-gray-700">Quick Date Filters</h3>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setQuickDateFilter("today")}
-            className="px-3 py-1.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg font-medium transition-colors"
-          >
-            Today
-          </button>
-          <button
-            onClick={() => setQuickDateFilter("yesterday")}
-            className="px-3 py-1.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg font-medium transition-colors"
-          >
-            Yesterday
-          </button>
-          <button
-            onClick={() => setQuickDateFilter("last7")}
-            className="px-3 py-1.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg font-medium transition-colors"
-          >
-            Last 7 Days
-          </button>
-          <button
-            onClick={() => setQuickDateFilter("week")}
-            className="px-3 py-1.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg font-medium transition-colors"
-          >
-            This Week
-          </button>
-          <button
-            onClick={() => setQuickDateFilter("month")}
-            className="px-3 py-1.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg font-medium transition-colors"
-          >
-            This Month
-          </button>
-        </div>
-      </div>
 
       {/* Search Bar */}
       <div className="mb-4">
@@ -407,7 +397,7 @@ function StaffShiftsHistory() {
           <LuFilter size={20} className="text-gray-600" />
           <h2 className="text-lg font-semibold">Filters</h2>
         </div>
-        
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Staff Filter */}
           <div>
@@ -416,7 +406,10 @@ function StaffShiftsHistory() {
             </label>
             <select
               value={selectedStaff}
-              onChange={(e) => { setSelectedStaff(e.target.value); setPage(1); }}
+              onChange={(e) => {
+                setSelectedStaff(e.target.value);
+                setPage(1);
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">All Staff</option>
@@ -435,7 +428,10 @@ function StaffShiftsHistory() {
             </label>
             <select
               value={selectedBusinessUnit}
-              onChange={(e) => { setSelectedBusinessUnit(e.target.value); setPage(1); }}
+              onChange={(e) => {
+                setSelectedBusinessUnit(e.target.value);
+                setPage(1);
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">All</option>
@@ -451,7 +447,10 @@ function StaffShiftsHistory() {
             </label>
             <select
               value={selectedPayment}
-              onChange={(e) => { setSelectedPayment(e.target.value); setPage(1); }}
+              onChange={(e) => {
+                setSelectedPayment(e.target.value);
+                setPage(1);
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">All</option>
@@ -468,7 +467,10 @@ function StaffShiftsHistory() {
             <input
               type="date"
               value={startDate}
-              onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                setPage(1);
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
@@ -481,7 +483,10 @@ function StaffShiftsHistory() {
             <input
               type="date"
               value={endDate}
-              onChange={(e) => { setEndDate(e.target.value); setPage(1); }}
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                setPage(1);
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
@@ -501,14 +506,26 @@ function StaffShiftsHistory() {
           <p className="text-sm text-blue-900">
             Showing <span className="font-bold">{transactions.length}</span> of{" "}
             <span className="font-bold">{total}</span> transactions
-            {selectedStaff && users.find(u => u.id === Number(selectedStaff)) && (
-              <span> for <span className="font-bold">{users.find(u => u.id === Number(selectedStaff))?.full_name}</span></span>
-            )}
+            {selectedStaff &&
+              users.find((u) => u.id === Number(selectedStaff)) && (
+                <span>
+                  {" "}
+                  for{" "}
+                  <span className="font-bold">
+                    {
+                      users.find((u) => u.id === Number(selectedStaff))
+                        ?.full_name
+                    }
+                  </span>
+                </span>
+              )}
           </p>
           <div className="flex flex-wrap gap-2">
             {selectedStaff && (
               <span className="inline-flex items-center px-2 py-1 rounded bg-blue-100 text-blue-800 text-xs font-medium">
-                Staff: {users.find(u => u.id === Number(selectedStaff))?.full_name || selectedStaff}
+                Staff:{" "}
+                {users.find((u) => u.id === Number(selectedStaff))?.full_name ||
+                  selectedStaff}
               </span>
             )}
             {selectedBusinessUnit && (
@@ -523,7 +540,7 @@ function StaffShiftsHistory() {
             )}
             {(startDate || endDate) && (
               <span className="inline-flex items-center px-2 py-1 rounded bg-gray-100 text-gray-800 text-xs font-medium">
-                Date: {startDate || 'Any'} → {endDate || 'Any'}
+                Date: {startDate || "Any"} → {endDate || "Any"}
               </span>
             )}
             {searchQuery && (
@@ -567,81 +584,99 @@ function StaffShiftsHistory() {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
-                    {searchQuery ? "No transactions match your search" : "No transactions found"}
+                  <td
+                    colSpan={7}
+                    className="px-4 py-8 text-center text-gray-500"
+                  >
+                    {searchQuery
+                      ? "No transactions match your search"
+                      : "No transactions found"}
                   </td>
                 </tr>
               ) : (
                 filteredTransactions.map((tx) => {
-                  const businessUnits = [...new Set(tx.items.map(i => i.business_unit))];
+                  const businessUnits = [
+                    ...new Set(tx.items.map((i) => i.business_unit)),
+                  ];
                   return (
                     <tr key={tx.order_id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                      #{tx.order_id}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
-                      <div className="flex items-center gap-2">
-                        <LuCalendar size={14} className="text-gray-400" />
-                        {new Date(tx.created_at).toLocaleDateString()}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-gray-500">
-                        <LuClock size={12} className="text-gray-400" />
-                        {new Date(tx.created_at).toLocaleTimeString()}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      <div className="font-medium text-gray-900">{tx.full_name}</div>
-                      <div className="text-xs text-gray-500">@{tx.username}</div>
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      {businessUnits.map((bu, i) => (
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                        #{tx.order_id}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        <div className="flex items-center gap-2">
+                          <LuCalendar size={14} className="text-gray-400" />
+                          {new Date(tx.created_at).toLocaleDateString()}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <LuClock size={12} className="text-gray-400" />
+                          {new Date(tx.created_at).toLocaleTimeString()}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <div className="font-medium text-gray-900">
+                          {tx.full_name}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          @{tx.username}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {businessUnits.map((bu, i) => (
+                          <span
+                            key={i}
+                            className={`inline-block px-2 py-1 rounded text-xs font-medium mr-1 ${
+                              bu === "Coffee"
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-blue-100 text-blue-800"
+                            }`}
+                          >
+                            {bu}
+                          </span>
+                        ))}
+                        <div className="text-xs text-gray-500 mt-1">
+                          {tx.items.length} item{tx.items.length > 1 ? "s" : ""}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
                         <span
-                          key={i}
-                          className={`inline-block px-2 py-1 rounded text-xs font-medium mr-1 ${
-                            bu === "Coffee"
-                              ? "bg-amber-100 text-amber-800"
+                          className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                            tx.payment_method === "Cash"
+                              ? "bg-green-100 text-green-800"
                               : "bg-blue-100 text-blue-800"
                           }`}
                         >
-                          {bu}
+                          {tx.payment_method}
                         </span>
-                      ))}
-                      <div className="text-xs text-gray-500 mt-1">
-                        {tx.items.length} item{tx.items.length > 1 ? "s" : ""}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      <span
-                        className={`inline-block px-2 py-1 rounded text-xs font-medium ${
-                          tx.payment_method === "Cash"
-                            ? "bg-green-100 text-green-800"
-                            : "bg-blue-100 text-blue-800"
-                        }`}
-                      >
-                        {tx.payment_method}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm font-bold text-gray-900">
-                      ₱{tx.total.toLocaleString("en-PH", {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-600">
-                      {tx.shift_start ? (
-                        <div>
-                          <div>Started: {new Date(tx.shift_start).toLocaleTimeString()}</div>
-                          {tx.shift_end && (
-                            <div>Ended: {new Date(tx.shift_end).toLocaleTimeString()}</div>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">No shift</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })
+                      </td>
+                      <td className="px-4 py-3 text-sm font-bold text-gray-900">
+                        ₱
+                        {tx.total.toLocaleString("en-PH", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-600">
+                        {tx.shift_start ? (
+                          <div>
+                            <div>
+                              Started:{" "}
+                              {new Date(tx.shift_start).toLocaleTimeString()}
+                            </div>
+                            {tx.shift_end && (
+                              <div>
+                                Ended:{" "}
+                                {new Date(tx.shift_end).toLocaleTimeString()}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">No shift</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -655,14 +690,14 @@ function StaffShiftsHistory() {
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
                 className="px-3 py-1 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Previous
               </button>
               <button
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
                 className="px-3 py-1 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >

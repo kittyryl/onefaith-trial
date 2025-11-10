@@ -2,7 +2,14 @@
 
 import { useCallback, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { LuCar, LuX, LuTrash2, LuPrinter, LuEye, LuTriangleAlert } from "react-icons/lu";
+import {
+  LuCar,
+  LuX,
+  LuTrash2,
+  LuPrinter,
+  LuEye,
+  LuTriangleAlert,
+} from "react-icons/lu";
 import { toast } from "react-toastify";
 import { v4 as uuidv4 } from "uuid";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -648,7 +655,7 @@ function ReceiptModal({ order, onClose }: ReceiptModalProps) {
 // POS
 function CarwashPOS() {
   const router = useRouter();
-  
+
   const [allServices, setAllServices] = useState<CarwashService[]>([]);
   const [loadingServices, setLoadingServices] = useState(true);
   const [checkingShift, setCheckingShift] = useState(true);
@@ -684,15 +691,15 @@ function CarwashPOS() {
         const response = await fetch(`${API_BASE}/api/shifts/current`, {
           headers: getAuthHeaders(),
         });
-        
+
         if (response.ok) {
           const data = await response.json();
-          setHasActiveShift(data && data.status === 'active');
+          setHasActiveShift(data && data.status === "active");
         } else {
           setHasActiveShift(false);
         }
       } catch (error) {
-        console.error('Failed to check shift:', error);
+        console.error("Failed to check shift:", error);
         setHasActiveShift(false);
       } finally {
         setCheckingShift(false);
@@ -1060,7 +1067,7 @@ function CarwashPOS() {
             </p>
             <div className="flex gap-3">
               <button
-                onClick={() => router.push('/')}
+                onClick={() => router.push("/")}
                 className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition-colors"
               >
                 Go to Dashboard

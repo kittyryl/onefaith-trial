@@ -36,6 +36,7 @@ interface Shift {
   user_id: number;
   username: string;
   full_name: string;
+  role: "manager" | "staff";
   start_time: string;
   end_time: string | null;
   status: "active" | "ended";
@@ -134,6 +135,18 @@ export default function SettingsPage() {
 function ShiftHistory() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedUser, setSelectedUser] = useState<string>("");
+  const [selectedDate, setSelectedDate] = useState<string>("");
+
+  // Get unique users from shift data
+  const userOptions = Array.from(
+    new Map(
+      shifts.map((s) => [
+        s.user_id,
+        { user_id: s.user_id, full_name: s.full_name, username: s.username },
+      ])
+    ).values()
+  );
 
   const fetchShifts = async () => {
     try {
@@ -164,15 +177,54 @@ function ShiftHistory() {
     return `${hours}h ${minutes}m`;
   };
 
+  // Filter by user and date
+  const filteredShifts = shifts.filter((s) => {
+    let userMatch = true;
+    let dateMatch = true;
+    if (selectedUser) userMatch = String(s.user_id) === selectedUser;
+    if (selectedDate) {
+      const shiftDate = new Date(s.start_time).toISOString().slice(0, 10);
+      dateMatch = shiftDate === selectedDate;
+    }
+    return userMatch && dateMatch;
+  });
+
   if (loading) return <PageLoader message="Loading Shifts..." color="amber" />;
 
   return (
     <div>
       {/* Shift History Table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Shift History</h3>
-          <p className="text-sm text-gray-600 mt-1">View all shifts. Use the Dashboard to start or end your shift.</p>
+        <div className="px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">
+              Shift History
+            </h3>
+            <p className="text-sm text-gray-600 mt-1">
+              View all shifts. Use the Dashboard to start or end your shift.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 mt-2 sm:mt-0">
+            <select
+              className="border border-gray-300 rounded px-2 py-1 text-sm"
+              value={selectedUser}
+              onChange={(e) => setSelectedUser(e.target.value)}
+            >
+              <option value="">All Users</option>
+              {userOptions.map((u) => (
+                <option key={u.user_id} value={u.user_id}>
+                  {u.full_name} (@{u.username})
+                </option>
+              ))}
+            </select>
+            <input
+              type="date"
+              className="border border-gray-300 rounded px-2 py-1 text-sm"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              max={new Date().toISOString().slice(0, 10)}
+            />
+          </div>
         </div>
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -198,7 +250,7 @@ function ShiftHistory() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {shifts.map((s) => (
+            {filteredShifts.map((s) => (
               <tr key={s.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3">
                   <div>
@@ -233,7 +285,7 @@ function ShiftHistory() {
             ))}
           </tbody>
         </table>
-        {shifts.length === 0 && (
+        {filteredShifts.length === 0 && (
           <div className="p-8 text-center text-gray-500">
             No shift history yet.
           </div>

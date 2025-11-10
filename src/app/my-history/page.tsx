@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { LuClock, LuCalendar, LuShoppingCart, LuCoffee, LuCar } from "react-icons/lu";
+import {
+  LuClock,
+  LuCalendar,
+  LuShoppingCart,
+  LuCoffee,
+  LuCar,
+} from "react-icons/lu";
 import { toast } from "react-toastify";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import PageLoader from "@/components/PageLoader";
@@ -33,21 +39,24 @@ function MyShiftTransactions() {
   const fetchTodaysTransactions = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE}/api/reports/my-shift/transactions?size=${pageSize}&page=${page}`, {
-        headers: getAuthHeaders(),
-      });
+      const res = await fetch(
+        `${API_BASE}/api/reports/my-shift/transactions?size=${pageSize}&page=${page}`,
+        {
+          headers: getAuthHeaders(),
+        }
+      );
 
       if (!res.ok) throw new Error("Failed to fetch transactions");
 
       const data = await res.json();
       const newTransactions = data.transactions || [];
-      
+
       if (page === 1) {
         setTransactions(newTransactions);
       } else {
-        setTransactions(prev => [...prev, ...newTransactions]);
+        setTransactions((prev) => [...prev, ...newTransactions]);
       }
-      
+
       setHasMore(newTransactions.length === pageSize);
     } catch (err) {
       console.error("Error fetching transactions:", err);
@@ -63,19 +72,21 @@ function MyShiftTransactions() {
 
   const loadMore = () => {
     if (!loading && hasMore) {
-      setPage(prev => prev + 1);
+      setPage((prev) => prev + 1);
     }
   };
 
   if (loading && page === 1) {
-    return <PageLoader message="Loading Today's Transactions..." color="blue" />;
+    return (
+      <PageLoader message="Loading Today's Transactions..." color="blue" />
+    );
   }
 
-  const coffeeTransactions = transactions.filter(tx => 
-    tx.items.some(item => item.business_unit === "Coffee")
+  const coffeeTransactions = transactions.filter((tx) =>
+    tx.items.some((item) => item.business_unit === "Coffee")
   );
-  const carwashTransactions = transactions.filter(tx => 
-    tx.items.some(item => item.business_unit === "Carwash")
+  const carwashTransactions = transactions.filter((tx) =>
+    tx.items.some((item) => item.business_unit === "Carwash")
   );
 
   return (
@@ -87,7 +98,9 @@ function MyShiftTransactions() {
             <LuClock size={32} className="text-blue-600" />
             Today&apos;s Transactions
           </h1>
-          <p className="text-sm text-gray-600 mt-1">All your transactions from today&apos;s shift</p>
+          <p className="text-sm text-gray-600 mt-1">
+            All your transactions from today&apos;s shift
+          </p>
         </div>
 
         {/* Summary Stats */}
@@ -95,8 +108,12 @@ function MyShiftTransactions() {
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 font-medium">Total Transactions</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">{transactions.length}</p>
+                <p className="text-sm text-gray-600 font-medium">
+                  Total Transactions
+                </p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {transactions.length}
+                </p>
               </div>
               <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                 <LuShoppingCart size={24} className="text-blue-600" />
@@ -107,8 +124,12 @@ function MyShiftTransactions() {
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 font-medium">Coffee Orders</p>
-                <p className="text-2xl font-bold text-amber-700 mt-1">{coffeeTransactions.length}</p>
+                <p className="text-sm text-gray-600 font-medium">
+                  Coffee Orders
+                </p>
+                <p className="text-2xl font-bold text-amber-700 mt-1">
+                  {coffeeTransactions.length}
+                </p>
               </div>
               <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
                 <LuCoffee size={24} className="text-amber-600" />
@@ -119,8 +140,12 @@ function MyShiftTransactions() {
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 font-medium">Carwash Orders</p>
-                <p className="text-2xl font-bold text-blue-700 mt-1">{carwashTransactions.length}</p>
+                <p className="text-sm text-gray-600 font-medium">
+                  Carwash Orders
+                </p>
+                <p className="text-2xl font-bold text-blue-700 mt-1">
+                  {carwashTransactions.length}
+                </p>
               </div>
               <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                 <LuCar size={24} className="text-blue-600" />
@@ -133,13 +158,19 @@ function MyShiftTransactions() {
         {transactions.length === 0 ? (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-12 text-center">
             <LuClock size={48} className="mx-auto mb-4 text-gray-300" />
-            <p className="text-lg font-medium text-gray-700">No transactions yet today</p>
-            <p className="text-sm text-gray-500 mt-2">Start taking orders to see them here!</p>
+            <p className="text-lg font-medium text-gray-700">
+              No transactions yet today
+            </p>
+            <p className="text-sm text-gray-500 mt-2">
+              Start taking orders to see them here!
+            </p>
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="p-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">All Transactions ({transactions.length})</h2>
+              <h2 className="text-lg font-semibold text-gray-900">
+                All Transactions ({transactions.length})
+              </h2>
             </div>
             <div className="divide-y divide-gray-200">
               {transactions.map((tx) => (
@@ -150,7 +181,9 @@ function MyShiftTransactions() {
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-semibold text-gray-900">#{tx.order_id}</span>
+                        <span className="text-sm font-semibold text-gray-900">
+                          #{tx.order_id}
+                        </span>
                         <span
                           className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                             tx.payment_method === "Cash"

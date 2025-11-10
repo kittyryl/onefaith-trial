@@ -448,7 +448,7 @@ function PaymentModal({
 // POS
 function CoffeePOS() {
   const router = useRouter();
-  
+
   // State
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [allCategories, setAllCategories] = useState<string[]>([]);
@@ -525,15 +525,15 @@ function CoffeePOS() {
         const response = await fetch(`${API_BASE}/api/shifts/current`, {
           headers: getAuthHeaders(),
         });
-        
+
         if (response.ok) {
           const data = await response.json();
-          setHasActiveShift(data && data.status === 'active');
+          setHasActiveShift(data && data.status === "active");
         } else {
           setHasActiveShift(false);
         }
       } catch (error) {
-        console.error('Failed to check shift:', error);
+        console.error("Failed to check shift:", error);
         setHasActiveShift(false);
       } finally {
         setCheckingShift(false);
@@ -760,7 +760,7 @@ function CoffeePOS() {
             </p>
             <div className="flex gap-3">
               <button
-                onClick={() => router.push('/')}
+                onClick={() => router.push("/")}
                 className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition-colors"
               >
                 Go to Dashboard
