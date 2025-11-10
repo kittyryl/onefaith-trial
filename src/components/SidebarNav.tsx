@@ -30,7 +30,7 @@ const managementItems = [
     icon: LuBoxes,
     roles: ["manager", "staff"],
   },
-  { name: "Sales", href: "/staff-shifts", icon: LuUsers, roles: ["manager"] },
+  { name: "Sales", href: "/sales", icon: LuUsers, roles: ["manager"] },
   { name: "Reports", href: "/reports", icon: LuChartBar, roles: ["manager"] },
   {
     name: "Carwash Services",

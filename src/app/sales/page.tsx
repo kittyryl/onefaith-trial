@@ -1,579 +1,751 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
-  LuFileText,
+  LuUsers,
+  LuFilter,
   LuDownload,
-  LuDollarSign,
   LuCalendar,
-  LuSearch,
-  LuArrowUpDown,
   LuClock,
+  LuDollarSign,
+  LuShoppingCart,
+  LuCoffee,
+  LuCar,
+  LuSearch,
 } from "react-icons/lu";
 import { toast } from "react-toastify";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import ManagerOnlyRoute from "@/components/ManagerOnlyRoute";
-import Spinner from "@/components/Spinner";
+import PageLoader from "@/components/PageLoader";
 import { getAuthHeaders } from "@/lib/auth";
 
-// Types
-interface SalesOrderItem {
-  item_type: string;
-  business_unit: "Coffee" | "Carwash";
-  quantity: number;
-  line_total: string;
-  details: {
-    option?: string;
-    vehicle?: string;
-  };
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
+
+interface User {
+  id: number;
+  username: string;
+  full_name: string;
 }
 
-interface SalesOrder {
+interface Transaction {
   order_id: string;
   created_at: string;
-  total: string;
-  discount: string;
+  total: number;
   payment_method: string;
-  order_type: string | null;
-  discount_type: string | null;
-  items_summary: SalesOrderItem[];
+  shift_id: number | null;
+  user_id: number;
+  username: string;
+  full_name: string;
+  shift_start: string | null;
+  shift_end: string | null;
+  items: {
+    business_unit: "Coffee" | "Carwash";
+    item_type: string;
+    quantity: number;
+    line_total: number;
+    details: Record<string, unknown>;
+  }[];
 }
 
-// Sales Page
-function Sales() {
-  const [salesData, setSalesData] = useState<SalesOrder[]>([]);
+function StaffShiftsHistory() {
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
+  const [users, setUsers] = useState<User[]>([]);
+  interface Aggregates {
+    totalRevenue: number;
+    coffeeItemRevenue: number;
+    carwashItemRevenue: number;
+  }
+  const [aggregates, setAggregates] = useState<Aggregates>({
+    totalRevenue: 0,
+    coffeeItemRevenue: 0,
+    carwashItemRevenue: 0,
+  });
 
-  // --- State for filters ---
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [businessUnit, setBusinessUnit] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [sortColumn, setSortColumn] = useState<string>("");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  // Filters
+  const [selectedStaff, setSelectedStaff] = useState<string>("");
+  const [selectedBusinessUnit, setSelectedBusinessUnit] = useState<string>("");
+  const [selectedPayment, setSelectedPayment] = useState<string>("");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
-  // CSV export
-  const exportToCSV = () => {
-    const dataToExport = filteredAndSortedData();
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const pageSize = 50;
 
-    if (dataToExport.length === 0) {
-      toast.warning("No data to export");
-      return;
-    }
+  // Fetch users for filter
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/users`, {
+          headers: getAuthHeaders(),
+        });
+        if (res.ok) {
+          const data: User[] = await res.json();
+          setUsers(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch users:", err);
+      }
+    };
+    fetchUsers();
+  }, []);
 
-    // CSV Headers
-    const headers = [
-      "Order ID",
-      "Date/Time",
-      "Business Unit",
-      "Items",
-      "Discount",
-      "Discount Type",
-      "Payment Method",
-      "Total",
-    ];
-
-    // Convert data to CSV rows
-    const rows = dataToExport.map((order) => {
-      const dateTime = new Date(order.created_at).toLocaleString("en-US");
-      const items = order.items_summary
-        .map((item) => {
-          const details = item.details?.option || item.details?.vehicle || "";
-          return `${item.item_type}${details ? ` (${details})` : ""} x${
-            item.quantity
-          }`;
-        })
-        .join("; ");
-
-      return [
-        order.order_id,
-        dateTime,
-        order.items_summary[0]?.business_unit || "N/A",
-        `"${items}"`, // Quoted to handle commas in item names
-        Number(order.discount).toFixed(2),
-        order.discount_type || "None",
-        order.payment_method,
-        Number(order.total).toFixed(2),
-      ];
-    });
-
-    // Combine headers and rows
-    const csvContent = [
-      headers.join(","),
-      ...rows.map((row) => row.join(",")),
-    ].join("\n");
-
-    // Create blob and download
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-
-    link.setAttribute("href", url);
-    link.setAttribute(
-      "download",
-      `sales-report-${new Date().toISOString().split("T")[0]}.csv`
-    );
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    toast.success(`Exported ${dataToExport.length} transactions to CSV`);
-  };
-
-  // Fetch sales (reacts to filters)
-  const fetchSalesData = async () => {
+  // Fetch transactions
+  const fetchTransactions = useCallback(async () => {
     try {
       setLoading(true);
+      const params = new URLSearchParams({
+        page: page.toString(),
+        size: pageSize.toString(),
+      });
 
-      const params = new URLSearchParams();
+      if (selectedStaff) params.append("staffId", selectedStaff);
+      if (selectedBusinessUnit)
+        params.append("businessUnit", selectedBusinessUnit);
+      if (selectedPayment) params.append("payment", selectedPayment);
       if (startDate) params.append("startDate", startDate);
       if (endDate) params.append("endDate", endDate);
-      if (businessUnit) params.append("businessUnit", businessUnit);
 
-      const queryString = params.toString();
-
-      const response = await fetch(
-        `${API_BASE}/api/reports/summary?${queryString}`,
-        {
-          headers: getAuthHeaders(),
-        }
+      const res = await fetch(
+        `${API_BASE}/api/reports/my-shift/all-transactions?${params}`,
+        { headers: getAuthHeaders() }
       );
 
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch sales data. Server responded with ${response.status}`
-        );
-      }
+      if (!res.ok) throw new Error("Failed to fetch transactions");
 
-      const data: SalesOrder[] = await response.json();
-      setSalesData(data);
-    } catch (error: unknown) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : typeof error === "string"
-          ? error
-          : "An unexpected error occurred";
-      toast.error(`Could not load sales reports: ${message}`);
-      console.error(error);
+      const data = await res.json();
+      setTransactions(data.transactions || []);
+      setTotalPages(data.totalPages || 1);
+      setTotal(data.total || 0);
+      setAggregates({
+        totalRevenue: data.aggregates?.totalRevenue || 0,
+        coffeeItemRevenue: data.aggregates?.coffeeItemRevenue || 0,
+        carwashItemRevenue: data.aggregates?.carwashItemRevenue || 0,
+      });
+    } catch (err) {
+      console.error("Error fetching transactions:", err);
+      toast.error("Failed to load shift transactions");
     } finally {
       setLoading(false);
     }
-  };
+  }, [
+    page,
+    selectedStaff,
+    selectedBusinessUnit,
+    selectedPayment,
+    startDate,
+    endDate,
+  ]);
 
-  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
-    fetchSalesData();
-  }, [startDate, endDate, businessUnit]);
-  /* eslint-enable react-hooks/exhaustive-deps */
+    fetchTransactions();
+  }, [fetchTransactions]);
 
-  // Quick date presets
-  const setDatePreset = (preset: "today" | "7days" | "30days" | "all") => {
-    const today = new Date();
-    const formatDate = (date: Date) => date.toISOString().split("T")[0];
-
-    switch (preset) {
-      case "today":
-        setStartDate(formatDate(today));
-        setEndDate(formatDate(today));
-        break;
-      case "7days":
-        const weekAgo = new Date(today);
-        weekAgo.setDate(today.getDate() - 7);
-        setStartDate(formatDate(weekAgo));
-        setEndDate(formatDate(today));
-        break;
-      case "30days":
-        const monthAgo = new Date(today);
-        monthAgo.setDate(today.getDate() - 30);
-        setStartDate(formatDate(monthAgo));
-        setEndDate(formatDate(today));
-        break;
-      case "all":
-        setStartDate("");
-        setEndDate("");
-        break;
+  const handleExportCSV = () => {
+    if (transactions.length === 0) {
+      toast.info("No transactions to export");
+      return;
     }
-  };
 
-  // Sort handler
-  const handleSort = (column: string) => {
-    if (sortColumn === column) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-    } else {
-      setSortColumn(column);
-      setSortDirection("asc");
-    }
-  };
+    const headers = [
+      "Order ID",
+      "Date",
+      "Time",
+      "Staff",
+      "Business Unit",
+      "Payment",
+      "Total",
+      "Shift Start",
+      "Shift End",
+    ];
 
-  // Filter + sort
-  const filteredAndSortedData = () => {
-    const filtered = salesData.filter((order) => {
-      const matchesSearch =
-        order.order_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        order.items_summary.some((item) =>
-          item.item_type.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-      return matchesSearch;
+    const rows = transactions.map((tx) => {
+      const businessUnits = [
+        ...new Set(tx.items.map((i) => i.business_unit)),
+      ].join(", ");
+      const date = new Date(tx.created_at);
+      return [
+        tx.order_id,
+        date.toLocaleDateString(),
+        date.toLocaleTimeString(),
+        tx.full_name,
+        businessUnits,
+        tx.payment_method,
+        (typeof tx.total === "number" ? tx.total : Number(tx.total)).toFixed(2),
+        tx.shift_start ? new Date(tx.shift_start).toLocaleString() : "N/A",
+        tx.shift_end ? new Date(tx.shift_end).toLocaleString() : "Active",
+      ];
     });
 
-    if (sortColumn) {
-      filtered.sort((a, b) => {
-        let aVal: string | number = "";
-        let bVal: string | number = "";
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+    ].join("\n");
 
-        switch (sortColumn) {
-          case "date":
-            aVal = new Date(a.created_at).getTime();
-            bVal = new Date(b.created_at).getTime();
-            break;
-          case "total":
-            aVal = Number(a.total);
-            bVal = Number(b.total);
-            break;
-          case "business":
-            aVal = a.items_summary[0]?.business_unit || "";
-            bVal = b.items_summary[0]?.business_unit || "";
-            break;
-          case "payment":
-            aVal = a.payment_method;
-            bVal = b.payment_method;
-            break;
-          default:
-            return 0;
-        }
-
-        if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
-        if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
-        return 0;
-      });
-    }
-
-    return filtered;
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `staff-shift-transactions-${
+      new Date().toISOString().split("T")[0]
+    }.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success("CSV exported successfully!");
   };
 
-  const dataToDisplay = filteredAndSortedData();
+  const resetFilters = () => {
+    setSelectedStaff("");
+    setSelectedBusinessUnit("");
+    setSelectedPayment("");
+    setStartDate("");
+    setEndDate("");
+    setSearchQuery("");
+    setPage(1);
+  };
 
-  // Derived metrics (after filters)
-  const filteredTotalSales = dataToDisplay.reduce(
-    (sum, order) => sum + Number(order.total),
+  // When search query changes, reset to first page so results are relevant
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery]);
+
+  if (loading && transactions.length === 0) {
+    return (
+      <PageLoader message="Loading Sales & Staff History..." color="blue" />
+    );
+  }
+
+  // Filter transactions based on search query
+  const filteredTransactions = transactions.filter((tx) => {
+    if (!searchQuery) return true;
+
+    const query = searchQuery.toLowerCase();
+    const matchesOrderId = tx.order_id.toLowerCase().includes(query);
+    const matchesStaff =
+      tx.full_name.toLowerCase().includes(query) ||
+      tx.username.toLowerCase().includes(query);
+    const matchesItem = tx.items.some((item) =>
+      item.item_type.toLowerCase().includes(query)
+    );
+
+    return matchesOrderId || matchesStaff || matchesItem;
+  });
+
+  // Calculate stats from filtered transactions
+  const totalRevenue = filteredTransactions.reduce(
+    (sum, tx) => sum + Number(tx.total),
     0
   );
-  const filteredTotalOrders = dataToDisplay.length;
+  // Per-item revenue per business unit to avoid overstating mixed orders
+  const coffeeRevenue = filteredTransactions.reduce(
+    (sum, tx) =>
+      sum +
+      tx.items
+        .filter((i) => i.business_unit === "Coffee")
+        .reduce((s, i) => s + Number(i.line_total), 0),
+    0
+  );
+  const carwashRevenue = filteredTransactions.reduce(
+    (sum, tx) =>
+      sum +
+      tx.items
+        .filter((i) => i.business_unit === "Carwash")
+        .reduce((s, i) => s + Number(i.line_total), 0),
+    0
+  );
+
+  // Calculate discounts or adjustments: sum of all item line totals minus total revenue
+  const grossItemSales = filteredTransactions.reduce(
+    (sum, tx) =>
+      sum +
+      tx.items.reduce((itemSum, item) => itemSum + Number(item.line_total), 0),
+    0
+  );
+  const discountsOrAdjustments = grossItemSales - totalRevenue;
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header and Title */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 md:mb-8">
-          <h1 className="text-2xl md:text-3xl font-bold flex items-center">
-            <LuFileText size={28} className="mr-2 md:mr-3 text-gray-700" />
-            Sales Reports
+    <div className="p-4 sm:p-6 md:p-8 min-h-screen bg-linear-to-br from-gray-50 to-gray-100">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-3">
+            <LuUsers size={32} className="text-blue-600" />
+            Sales
           </h1>
-          <button
-            onClick={exportToCSV}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center justify-center hover:bg-blue-700 transition-colors shadow-sm"
-          >
-            <LuDownload size={18} className="mr-2" />
-            Export to CSV
-          </button>
+          <p className="text-sm text-gray-600 mt-1">
+            View all transactions with staff and shift details
+          </p>
+        </div>
+        <button
+          onClick={handleExportCSV}
+          disabled={transactions.length === 0}
+          className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+        >
+          <LuDownload size={18} />
+          Export CSV
+        </button>
+      </div>
+
+      {/* Summary Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 font-medium">
+                Displayed Transactions
+              </p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">
+                {filteredTransactions.length}
+              </p>
+              {searchQuery && (
+                <p className="text-xs text-gray-500 mt-1">of {total} total</p>
+              )}
+            </div>
+            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+              <LuShoppingCart size={24} className="text-blue-600" />
+            </div>
+          </div>
         </div>
 
-        {/* --- Search Bar --- */}
-        <div className="mb-6">
-          <div className="relative">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 font-medium">
+                Filtered Page Revenue
+              </p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">
+                ₱{totalRevenue.toFixed(2)}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                All Matching: ₱{aggregates.totalRevenue.toFixed(2)}
+              </p>
+            </div>
+            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+              <LuDollarSign size={24} className="text-green-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 font-medium">
+                Coffee Item Sales
+              </p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">
+                ₱{coffeeRevenue.toFixed(2)}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                All Matching: ₱{aggregates.coffeeItemRevenue.toFixed(2)}
+              </p>
+              {/* Optional: number of orders contributing to coffee sales can be derived if needed */}
+            </div>
+            <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
+              <LuCoffee size={24} className="text-amber-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 font-medium">
+                Carwash Item Sales
+              </p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">
+                ₱{carwashRevenue.toFixed(2)}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                All Matching: ₱{aggregates.carwashItemRevenue.toFixed(2)}
+              </p>
+              {/* Optional: number of orders contributing to carwash sales can be derived if needed */}
+            </div>
+            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+              <LuCar size={24} className="text-blue-600" />
+            </div>
+          </div>
+        </div>
+
+        {/* Discounts/Adjustments Box */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 font-medium">
+                Discounts / Adjustments
+              </p>
+              <p className={`text-2xl font-bold mt-1 ${discountsOrAdjustments < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                {discountsOrAdjustments < 0 ? '-' : ''}₱{Math.abs(discountsOrAdjustments).toFixed(2)}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Gross Item Sales - Net Revenue
+              </p>
+            </div>
+            <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+              <LuDollarSign size={24} className="text-red-600" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Date Filters */}
+
+      {/* Search Bar */}
+      <div className="mb-4">
+        <div className="relative flex gap-2">
+          <div className="relative flex-1">
             <LuSearch
               className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
               size={18}
             />
             <input
               type="text"
-              placeholder="Search by Order ID or item name..."
+              placeholder="Search by Order ID, staff name, or item..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white"
+              className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-600 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-6">
+        <div className="flex items-center gap-2 mb-4">
+          <LuFilter size={20} className="text-gray-600" />
+          <h2 className="text-lg font-semibold">Filters</h2>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          {/* Staff Filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Staff Member
+            </label>
+            <select
+              value={selectedStaff}
+              onChange={(e) => {
+                setSelectedStaff(e.target.value);
+                setPage(1);
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">All Staff</option>
+              {users.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.full_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Business Unit Filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Business Unit
+            </label>
+            <select
+              value={selectedBusinessUnit}
+              onChange={(e) => {
+                setSelectedBusinessUnit(e.target.value);
+                setPage(1);
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">All</option>
+              <option value="Coffee">Coffee</option>
+              <option value="Carwash">Carwash</option>
+            </select>
+          </div>
+
+          {/* Payment Filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Payment Method
+            </label>
+            <select
+              value={selectedPayment}
+              onChange={(e) => {
+                setSelectedPayment(e.target.value);
+                setPage(1);
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">All</option>
+              <option value="Cash">Cash</option>
+              <option value="Gcash">GCash</option>
+            </select>
+          </div>
+
+          {/* Start Date */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Start Date
+            </label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                setPage(1);
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          {/* End Date */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              End Date
+            </label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                setPage(1);
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
         </div>
 
-        {/* --- Quick Date Presets --- */}
-        <div className="mb-6 flex flex-wrap gap-2">
-          <button
-            onClick={() => setDatePreset("today")}
-            className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center"
-          >
-            <LuClock size={14} className="mr-1.5" />
-            Today
-          </button>
-          <button
-            onClick={() => setDatePreset("7days")}
-            className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Last 7 Days
-          </button>
-          <button
-            onClick={() => setDatePreset("30days")}
-            className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Last 30 Days
-          </button>
-          <button
-            onClick={() => setDatePreset("all")}
-            className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            All Time
-          </button>
-        </div>
+        <button
+          onClick={resetFilters}
+          className="mt-4 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+        >
+          Reset Filters
+        </button>
+      </div>
 
-        {/* --- Filter Bar --- */}
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-8">
-          <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-4">
-            {/* Date Range */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-              <LuCalendar size={20} className="text-gray-500 hidden sm:block" />
-              <label className="text-sm font-medium text-gray-700">From:</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="p-2 border border-gray-300 rounded-lg text-sm w-full sm:w-auto"
-              />
-              <label className="text-sm font-medium text-gray-700">To:</label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="p-2 border border-gray-300 rounded-lg text-sm w-full sm:w-auto"
-              />
-            </div>
-
-            {/* Business Unit */}
-            <div className="flex items-center space-x-2">
-              <label className="text-sm font-medium text-gray-700">
-                Business:
-              </label>
-              <select
-                value={businessUnit}
-                onChange={(e) => setBusinessUnit(e.target.value)}
-                className="p-2 border border-gray-300 rounded-lg text-sm bg-white"
-              >
-                <option value="all">All Units</option>
-                <option value="Coffee">Coffee POS</option>
-                {/* --- FIX: Corrected value --- */}
-                <option value="Carwash">Carwash POS</option>
-              </select>
-            </div>
+      {/* Results Summary + Active Filters */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+        <div className="flex flex-col gap-2">
+          <p className="text-sm text-blue-900">
+            Showing <span className="font-bold">{transactions.length}</span> of{" "}
+            <span className="font-bold">{total}</span> transactions
+            {selectedStaff &&
+              users.find((u) => u.id === Number(selectedStaff)) && (
+                <span>
+                  {" "}
+                  for{" "}
+                  <span className="font-bold">
+                    {
+                      users.find((u) => u.id === Number(selectedStaff))
+                        ?.full_name
+                    }
+                  </span>
+                </span>
+              )}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {selectedStaff && (
+              <span className="inline-flex items-center px-2 py-1 rounded bg-blue-100 text-blue-800 text-xs font-medium">
+                Staff:{" "}
+                {users.find((u) => u.id === Number(selectedStaff))?.full_name ||
+                  selectedStaff}
+              </span>
+            )}
+            {selectedBusinessUnit && (
+              <span className="inline-flex items-center px-2 py-1 rounded bg-amber-100 text-amber-800 text-xs font-medium">
+                Unit: {selectedBusinessUnit}
+              </span>
+            )}
+            {selectedPayment && (
+              <span className="inline-flex items-center px-2 py-1 rounded bg-green-100 text-green-800 text-xs font-medium">
+                Payment: {selectedPayment}
+              </span>
+            )}
+            {(startDate || endDate) && (
+              <span className="inline-flex items-center px-2 py-1 rounded bg-gray-100 text-gray-800 text-xs font-medium">
+                Date: {startDate || "Any"} → {endDate || "Any"}
+              </span>
+            )}
+            {searchQuery && (
+              <span className="inline-flex items-center px-2 py-1 rounded bg-purple-100 text-purple-800 text-xs font-medium">
+                Search: “{searchQuery}”
+              </span>
+            )}
           </div>
         </div>
+      </div>
 
-        {/* --- Metrics Row --- */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center">
-            <div className="p-3 rounded-lg bg-emerald-100 mr-4">
-              <LuDollarSign size={32} className="text-emerald-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Total Revenue</p>
-              <p className="text-2xl font-bold mt-1 tabular-nums">
-                {filteredTotalSales.toLocaleString("en-PH", {
-                  style: "currency",
-                  currency: "PHP",
-                })}
-              </p>
-              <p className="text-xs text-gray-400 mt-1">
-                {filteredTotalOrders} orders
-              </p>
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center">
-            <div className="p-3 rounded-lg bg-blue-100 mr-4">
-              <LuFileText size={32} className="text-blue-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Total Orders</p>
-              <p className="text-2xl font-bold mt-1">{filteredTotalOrders}</p>
-              <p className="text-xs text-gray-400 mt-1">
-                Avg:{" "}
-                {filteredTotalOrders > 0
-                  ? (filteredTotalSales / filteredTotalOrders).toLocaleString(
-                      "en-PH",
-                      { style: "currency", currency: "PHP" }
-                    )
-                  : "₱0.00"}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* --- Main Sales Table --- */}
-        <h2 className="text-xl md:text-2xl font-semibold mb-4">
-          Transaction History
-        </h2>
-        <div className="bg-white p-3 sm:p-6 rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
-          {loading ? (
-            <div className="flex items-center justify-center py-10">
-              <Spinner size="md" thickness={2} label="Fetching sales data..." />
-            </div>
-          ) : dataToDisplay.length === 0 ? (
-            <p className="text-center py-10 text-gray-500">
-              {searchQuery
-                ? "No transactions match your search."
-                : "No sales records found for the selected filters."}
-            </p>
-          ) : (
-            <div className="overflow-x-auto -mx-3 sm:mx-0">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                      Order ID
-                    </th>
-                    <th
-                      className="px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none whitespace-nowrap"
-                      onClick={() => handleSort("date")}
-                    >
-                      <div className="flex items-center space-x-1">
-                        <span>Date/Time</span>
-                        <LuArrowUpDown
-                          size={14}
-                          className={
-                            sortColumn === "date"
-                              ? "text-amber-600"
-                              : "text-gray-400"
-                          }
-                        />
-                      </div>
-                    </th>
-                    <th
-                      className="px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none whitespace-nowrap"
-                      onClick={() => handleSort("business")}
-                    >
-                      <div className="flex items-center space-x-1">
-                        <span>Business</span>
-                        <LuArrowUpDown
-                          size={14}
-                          className={
-                            sortColumn === "business"
-                              ? "text-amber-600"
-                              : "text-gray-400"
-                          }
-                        />
-                      </div>
-                    </th>
-                    <th className="px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                      Details
-                    </th>
-                    <th className="px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                      Discount
-                    </th>
-                    <th
-                      className="px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none whitespace-nowrap"
-                      onClick={() => handleSort("payment")}
-                    >
-                      <div className="flex items-center space-x-1">
-                        <span>Payment</span>
-                        <LuArrowUpDown
-                          size={14}
-                          className={
-                            sortColumn === "payment"
-                              ? "text-amber-600"
-                              : "text-gray-400"
-                          }
-                        />
-                      </div>
-                    </th>
-                    <th
-                      className="px-2 sm:px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none whitespace-nowrap"
-                      onClick={() => handleSort("total")}
-                    >
-                      <div className="flex items-center justify-end space-x-1">
-                        <span>Total</span>
-                        <LuArrowUpDown
-                          size={14}
-                          className={
-                            sortColumn === "total"
-                              ? "text-amber-600"
-                              : "text-gray-400"
-                          }
-                        />
-                      </div>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {dataToDisplay.map((order) => (
-                    <tr key={order.order_id} className="hover:bg-gray-50/80">
-                      <td className="px-2 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-gray-900">
-                        {order.order_id.split("-")[0]}...
+      {/* Transactions Table */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Order ID
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Date & Time
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Staff
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Items
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Payment
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Total
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Shift
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredTransactions.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-4 py-8 text-center text-gray-500"
+                  >
+                    {searchQuery
+                      ? "No transactions match your search"
+                      : "No transactions found"}
+                  </td>
+                </tr>
+              ) : (
+                filteredTransactions.map((tx) => {
+                  const businessUnits = [
+                    ...new Set(tx.items.map((i) => i.business_unit)),
+                  ];
+                  return (
+                    <tr key={tx.order_id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                        #{tx.order_id}
                       </td>
-                      <td className="px-2 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
-                        {new Date(order.created_at).toLocaleString("en-US", {
-                          dateStyle: "short",
-                          timeStyle: "short",
-                        })}
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        <div className="flex items-center gap-2">
+                          <LuCalendar size={14} className="text-gray-400" />
+                          {new Date(tx.created_at).toLocaleDateString()}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <LuClock size={12} className="text-gray-400" />
+                          {new Date(tx.created_at).toLocaleTimeString()}
+                        </div>
                       </td>
-                      <td className="px-2 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
+                      <td className="px-4 py-3 text-sm">
+                        <div className="font-medium text-gray-900">
+                          {tx.full_name}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          @{tx.username}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {businessUnits.map((bu, i) => (
+                          <span
+                            key={i}
+                            className={`inline-block px-2 py-1 rounded text-xs font-medium mr-1 ${
+                              bu === "Coffee"
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-blue-100 text-blue-800"
+                            }`}
+                          >
+                            {bu}
+                          </span>
+                        ))}
+                        <div className="text-xs text-gray-500 mt-1">
+                          {tx.items.length} item{tx.items.length > 1 ? "s" : ""}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
                         <span
-                          // --- FIX: Corrected conditional logic ---
-                          className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-lg ${
-                            order.items_summary[0]?.business_unit === "Coffee"
-                              ? "bg-amber-100 text-amber-800"
+                          className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                            tx.payment_method === "Cash"
+                              ? "bg-green-100 text-green-800"
                               : "bg-blue-100 text-blue-800"
                           }`}
                         >
-                          {order.items_summary[0]?.business_unit}
+                          {tx.payment_method}
                         </span>
                       </td>
-                      <td className="px-2 sm:px-4 py-3 sm:py-4 text-xs sm:text-sm text-gray-700">
-                        {order.items_summary.map((item, index) => (
-                          <div key={index} className="text-xs">
-                            {item.item_type}{" "}
-                            {item.details?.option && `(${item.details.option})`}
-                            {item.details?.vehicle &&
-                              `(${item.details.vehicle})`}
-                            <span className="text-gray-500">
-                              {" "}
-                              x{item.quantity}
-                            </span>
-                          </div>
-                        ))}
-                      </td>
-                      <td className="px-2 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-red-600 tabular-nums">
-                        {Number(order.discount) > 0
-                          ? `${Number(order.discount).toLocaleString("en-PH", {
-                              style: "currency",
-                              currency: "PHP",
-                            })} (${order.discount_type || "N/A"})`
-                          : "—"}
-                      </td>
-                      <td className="px-2 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
-                        <span className="px-2 py-1 rounded-full bg-gray-100 text-xs font-medium">
-                          {order.payment_method}
-                        </span>
-                      </td>
-                      <td className="px-2 sm:px-4 py-3 sm:py-4 whitespace-nowrap text-right text-sm sm:text-base font-bold text-gray-900 tabular-nums">
-                        {Number(order.total).toLocaleString("en-PH", {
-                          style: "currency",
-                          currency: "PHP",
+                      <td className="px-4 py-3 text-sm font-bold text-gray-900">
+                        ₱
+                        {tx.total.toLocaleString("en-PH", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
                         })}
                       </td>
+                      <td className="px-4 py-3 text-xs text-gray-600">
+                        {tx.shift_start ? (
+                          <div>
+                            <div>
+                              Started:{" "}
+                              {new Date(tx.shift_start).toLocaleTimeString()}
+                            </div>
+                            {tx.shift_end && (
+                              <div>
+                                Ended:{" "}
+                                {new Date(tx.shift_end).toLocaleTimeString()}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">No shift</span>
+                        )}
+                      </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+            <div className="text-sm text-gray-700">
+              Page {page} of {totalPages}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-3 py-1 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="px-3 py-1 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-export default function SalesPage() {
+export default function StaffShiftsPage() {
   return (
-    <ManagerOnlyRoute>
-      <Sales />
-    </ManagerOnlyRoute>
+    <ProtectedRoute>
+      <ManagerOnlyRoute>
+        <StaffShiftsHistory />
+      </ManagerOnlyRoute>
+    </ProtectedRoute>
   );
 }
