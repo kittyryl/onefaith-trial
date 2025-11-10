@@ -95,6 +95,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    // End shift if active before logging out
+    const token = localStorage.getItem("auth_token");
+    if (token && user) {
+      fetch(`${API_BASE}/api/shifts/end`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ notes: "Auto-ended on logout" }),
+      }).catch(() => {}); // Silently fail if no active shift
+    }
     localStorage.removeItem("auth_token");
     setUser(null);
     router.push("/login");

@@ -214,7 +214,9 @@ function StaffShiftsHistory() {
   }, [searchQuery]);
 
   if (loading && transactions.length === 0) {
-    return <PageLoader message="Loading Sales History..." color="blue" />;
+    return (
+      <PageLoader message="Loading Sales & Staff History..." color="blue" />
+    );
   }
 
   // Filter transactions based on search query
