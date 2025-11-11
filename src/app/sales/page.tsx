@@ -1,5 +1,25 @@
 "use client";
 
+// Fetch dashboard summary for total revenue
+async function fetchDashboardSummaryTotal(): Promise<number> {
+  try {
+    const API_BASE =
+      process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
+    const res = await fetch(`${API_BASE}/api/reports/summary`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) return 0;
+    const data = await res.json();
+    // Dashboard expects an array of orders, sum their totals
+    return data.reduce(
+      (sum: number, order: { total: number }) => sum + Number(order.total),
+      0
+    );
+  } catch {
+    return 0;
+  }
+}
+
 /*
   Sales Page
   ----------
@@ -67,6 +87,12 @@ interface Transaction {
 // Main Sales History Component
 // --------------------
 function StaffShiftsHistory() {
+  // Dashboard total revenue
+  const [dashboardTotalRevenue, setDashboardTotalRevenue] = useState<number>(0);
+
+  useEffect(() => {
+    fetchDashboardSummaryTotal().then(setDashboardTotalRevenue);
+  }, []);
   // State for all transactions
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   // Loading state for async fetches
@@ -339,10 +365,19 @@ function StaffShiftsHistory() {
                 Filtered Page Revenue
               </p>
               <p className="text-2xl font-bold text-gray-900 mt-1">
-                ₱{totalRevenue.toFixed(2)}
+                ₱
+                {totalRevenue.toLocaleString("en-PH", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                All Matching: ₱{aggregates.totalRevenue.toFixed(2)}
+                All Matching: ₱
+                {dashboardTotalRevenue.toLocaleString("en-PH", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+                {/* Matches dashboard total revenue */}
               </p>
             </div>
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
@@ -358,10 +393,18 @@ function StaffShiftsHistory() {
                 Coffee Item Sales
               </p>
               <p className="text-2xl font-bold text-gray-900 mt-1">
-                ₱{coffeeRevenue.toFixed(2)}
+                ₱
+                {coffeeRevenue.toLocaleString("en-PH", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                All Matching: ₱{aggregates.coffeeItemRevenue.toFixed(2)}
+                All Matching: ₱
+                {aggregates.coffeeItemRevenue.toLocaleString("en-PH", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </p>
               {/* Optional: number of orders contributing to coffee sales can be derived if needed */}
             </div>
@@ -378,10 +421,18 @@ function StaffShiftsHistory() {
                 Carwash Item Sales
               </p>
               <p className="text-2xl font-bold text-gray-900 mt-1">
-                ₱{carwashRevenue.toFixed(2)}
+                ₱
+                {carwashRevenue.toLocaleString("en-PH", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                All Matching: ₱{aggregates.carwashItemRevenue.toFixed(2)}
+                All Matching: ₱
+                {aggregates.carwashItemRevenue.toLocaleString("en-PH", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </p>
               {/* Optional: number of orders contributing to carwash sales can be derived if needed */}
             </div>
