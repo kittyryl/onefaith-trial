@@ -1,7 +1,16 @@
 "use client";
+/*
+  Main Dashboard Page
+  -------------------
+  This page serves as the main dashboard for the application, providing a summary of sales, inventory, and quick navigation to key business modules (Coffee, Carwash, Reports, etc.).
+  It fetches and displays sales analytics, inventory warnings, and uses various charts for visualization.
+  ProtectedRoute ensures only authenticated users can access this page.
+*/
+
 /* eslint-disable react-hooks/exhaustive-deps */
 
 import { useState, useEffect } from "react";
+// Import dashboard and business unit icons
 import {
   LuLayoutDashboard,
   LuCoffee,
@@ -16,6 +25,7 @@ import {
 } from "react-icons/lu";
 import { toast } from "react-toastify";
 import Link from "next/link";
+// Import charting components for analytics
 import {
   ResponsiveContainer,
   BarChart,
@@ -27,13 +37,17 @@ import {
   Legend,
 } from "recharts";
 import { format, parseISO } from "date-fns";
-import ProtectedRoute from "@/components/ProtectedRoute";
-import PageLoader from "@/components/PageLoader";
+import ProtectedRoute from "@/components/ProtectedRoute"; // Restricts access to authenticated users
+import PageLoader from "@/components/PageLoader"; // Loading spinner for async data
 import Spinner from "@/components/Spinner";
-import { getAuthHeaders } from "@/lib/auth";
-import { useAuth } from "@/contexts/AuthContext";
+import { getAuthHeaders } from "@/lib/auth"; // Helper for API auth headers
+import { useAuth } from "@/contexts/AuthContext"; // Auth context for user info
 
-// Types
+// --------------------
+// Type Definitions
+// --------------------
+
+// Sales summary for a single order
 interface SalesSummary {
   order_id: string;
   total: string;
@@ -43,12 +57,14 @@ interface SalesSummary {
   }[];
 }
 
+// Aggregated sales by business unit per day
 interface SalesByBusinessByDay {
   date: string;
   coffee_sales: string;
   carwash_sales: string;
 }
 
+// Ingredient inventory structure
 interface Ingredient {
   id: number;
   name: string;

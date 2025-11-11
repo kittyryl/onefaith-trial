@@ -1,7 +1,21 @@
 "use client";
 
+/*
+  Carwash POS Page
+  ----------------
+  This page implements the Point-of-Sale (POS) system for carwash services. It allows staff to:
+    - Select carwash services and vehicle types
+    - Add/remove services to a cart
+    - Process payments (Cash/Gcash)
+    - Print receipts (with Bluetooth/ESC/POS support)
+    - View and manage current orders
+  ProtectedRoute ensures only authenticated users can access this page.
+  The page uses various utility and UI components for printing, receipt preview, and async data handling.
+*/
+
 import { useCallback, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+// Import icons for UI elements
 import {
   LuCar,
   LuX,
@@ -12,23 +26,28 @@ import {
 } from "react-icons/lu";
 import { toast } from "react-toastify";
 import { v4 as uuidv4 } from "uuid";
-import ProtectedRoute from "@/components/ProtectedRoute";
-import { getAuthHeaders } from "@/lib/auth";
-import PageLoader from "@/components/PageLoader";
-import { printElementById } from "@/utils/print";
-import { generateCarwashReceipt } from "@/utils/escpos";
-import { printWithRawBT, canUseRawBT } from "@/utils/rawbt";
-import ESCPOSPreview from "@/components/ESCPOSPreview";
+import ProtectedRoute from "@/components/ProtectedRoute"; // Restricts access to authenticated users
+import { getAuthHeaders } from "@/lib/auth"; // Helper for API auth headers
+import PageLoader from "@/components/PageLoader"; // Loading spinner for async data
+import { printElementById } from "@/utils/print"; // Utility for printing DOM elements
+import { generateCarwashReceipt } from "@/utils/escpos"; // ESC/POS receipt generator
+import { printWithRawBT, canUseRawBT } from "@/utils/rawbt"; // Bluetooth printing utilities
+import ESCPOSPreview from "@/components/ESCPOSPreview"; // Receipt preview component
 
+// API base URL
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
 
-// Types
+// --------------------
+// Type Definitions
+// --------------------
 
+// Price for a carwash service by vehicle type
 interface ServicePrice {
   vehicle_type: string;
   price: number;
 }
 
+// Carwash service definition
 interface CarwashService {
   id: number;
   name: string;
@@ -37,6 +56,7 @@ interface CarwashService {
   prices: ServicePrice[];
 }
 
+// Cart item for carwash order
 interface CarwashCartItem {
   cartId: string;
   serviceId: string;
@@ -46,6 +66,7 @@ interface CarwashCartItem {
   quantity: number;
 }
 
+// Order details for carwash transaction
 interface CarwashOrderDetails {
   orderId: string;
   items: CarwashCartItem[];

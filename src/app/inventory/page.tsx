@@ -1,8 +1,21 @@
 "use client";
 
+/*
+  Inventory Page
+  --------------
+  This page manages inventory for both ingredients and products. It allows staff to:
+    - View, add, edit, and archive ingredients/products
+    - Track current stock and required stock
+    - Normalize units for display
+    - Export inventory data
+  ProtectedRoute ensures only authenticated users can access this page.
+  The page uses various utility and UI components for async data handling and user feedback.
+*/
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { LuTriangleAlert } from "react-icons/lu";
+// Import icons for UI elements
 import {
   LuPencilLine,
   LuTrash2,
@@ -13,11 +26,15 @@ import {
   LuDownload,
 } from "react-icons/lu";
 import { toast } from "react-toastify";
-import ProtectedRoute from "@/components/ProtectedRoute";
-import Spinner from "@/components/Spinner";
-import PageLoader from "@/components/PageLoader";
-import { getAuthHeaders } from "@/lib/auth";
-import { useAuth } from "@/contexts/AuthContext";
+import ProtectedRoute from "@/components/ProtectedRoute"; // Restricts access to authenticated users
+import Spinner from "@/components/Spinner"; // Loading spinner for async data
+import PageLoader from "@/components/PageLoader"; // Page-level loading spinner
+import { getAuthHeaders } from "@/lib/auth"; // Helper for API auth headers
+import { useAuth } from "@/contexts/AuthContext"; // Auth context for user info
+
+// --------------------
+// Utility Functions
+// --------------------
 
 // Normalize unit variants to canonical singular display values
 function normalizeUnitSingular(unit?: string | null): string {
@@ -28,8 +45,11 @@ function normalizeUnitSingular(unit?: string | null): string {
   return unit;
 }
 
-// Types
+// --------------------
+// Type Definitions
+// --------------------
 
+// Ingredient inventory structure
 interface Ingredient {
   id: number;
   name: string;
@@ -40,6 +60,7 @@ interface Ingredient {
   archived?: boolean;
 }
 
+// Product inventory structure
 interface Product {
   id: number;
   name: string;
@@ -49,6 +70,7 @@ interface Product {
   image_url: string | null;
 }
 
+// Form data for ingredient/product modals
 interface FormData {
   id?: number;
   name: string;
@@ -944,10 +966,7 @@ function Inventory() {
       }
 
       toast.success(`${name} deleted successfully!`);
-      // Remove from local state immediately for instant UI update
-      setIngredients((prev) => prev.filter((ing) => ing.id !== item.id));
-      // Optionally, you can still call fetchAllData() in the background if you want to sync
-      // fetchAllData();
+      fetchAllData();
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : "An error occurred";
@@ -1165,18 +1184,23 @@ function Inventory() {
                               <LuPencilLine size={18} />
                             </button>
                           )}
-                          {/* Delete button removed for archived view since deletion is not allowed if referenced in history */}
+                          {/* Show delete button only when viewing archived */}
+                          {ingredientView === "archived" && (
+                            <button
+                              onClick={() => openDeleteConfirmation(ingredient)}
+                              className="text-red-600 hover:text-red-900 cursor-pointer"
+                            >
+                              <LuTrash2 size={18} />
+                            </button>
+                          )}
                         </div>
                       )}
-                      {/* Hide Stock IN/OUT for archived ingredients */}
-                      {ingredientView === "active" && (
-                        <button
-                          onClick={() => openMovementModal(ingredient)}
-                          className="bg-amber-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-amber-700 transition-colors shadow-sm"
-                        >
-                          Stock IN/OUT
-                        </button>
-                      )}
+                      <button
+                        onClick={() => openMovementModal(ingredient)}
+                        className="bg-amber-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-amber-700 transition-colors shadow-sm"
+                      >
+                        Stock IN/OUT
+                      </button>
                       {isManager() && (
                         <button
                           onClick={async () => {
@@ -1380,6 +1404,46 @@ function Inventory() {
                 >
                   <LuDownload className="mr-2" /> Export CSV
                 </button>
+              </div>
+            </div>
+            {/* Improved search bar and filter UI for ingredients */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4 gap-2 mb-4">
+              <div className="flex flex-1 gap-2">
+                <input
+                  type="text"
+                  className="border border-gray-300 rounded-lg px-3 py-2 w-full max-w-xs focus:ring-amber-500 focus:border-amber-500 transition"
+                  placeholder="Search ingredients..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+                <select
+                  className="border border-gray-300 rounded-lg px-3 py-2 w-full max-w-xs focus:ring-amber-500 focus:border-amber-500 transition"
+                  value={selectedIngredientCategory}
+                  onChange={(e) =>
+                    setSelectedIngredientCategory(e.target.value)
+                  }
+                >
+                  <option value="All">All Categories</option>
+                  {Array.from(new Set(ingredients.map((i) => i.category)))
+                    .filter((cat) => cat && cat !== "")
+                    .sort()
+                    .map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-2 mt-1 sm:mt-0">
+                <label className="flex items-center gap-1 text-xs font-medium text-gray-600 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={showLowStockOnly}
+                    onChange={() => setShowLowStockOnly((v) => !v)}
+                    className="accent-amber-600 h-4 w-4"
+                  />
+                  Low Stock Only
+                </label>
               </div>
             </div>
             <div className="max-w-7xl mx-auto">{renderIngredientTable()}</div>

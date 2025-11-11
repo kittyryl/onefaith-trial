@@ -1,13 +1,28 @@
 "use client";
 
+type Role = "manager" | "staff";
+
+/*
+  Settings Page
+  -------------
+  This page manages user accounts, staff shifts, carwash and product settings. It allows managers to:
+    - View, add, edit, and archive user accounts
+    - Manage staff shifts (start/end, notes)
+    - Configure carwash and product settings
+    - Logout and switch between tabs
+  ProtectedRoute ensures only authenticated users can access this page.
+  The page uses various utility and UI components for async data handling and user feedback.
+*/
+
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import ProtectedRoute from "@/components/ProtectedRoute";
-import { useAuth } from "@/contexts/AuthContext";
+import ProtectedRoute from "@/components/ProtectedRoute"; // Restricts access to authenticated users
+import { useAuth } from "@/contexts/AuthContext"; // Auth context for user info
 import { toast } from "react-toastify";
-import { getAuthHeaders } from "@/lib/auth";
-import Spinner from "@/components/Spinner";
-import PageLoader from "@/components/PageLoader";
+import { getAuthHeaders } from "@/lib/auth"; // Helper for API auth headers
+import Spinner from "@/components/Spinner"; // Loading spinner for async data
+import PageLoader from "@/components/PageLoader"; // Page-level loading spinner
+// Import icons for UI elements
 import {
   LuPlus,
   LuPencil,
@@ -18,10 +33,14 @@ import {
   LuCoffee,
 } from "react-icons/lu";
 
+// API base URL
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
 
-type Role = "manager" | "staff";
+// --------------------
+// Type Definitions
+// --------------------
 
+// User account structure
 interface AppUser {
   id: number;
   username: string;
@@ -31,6 +50,7 @@ interface AppUser {
   created_at: string;
 }
 
+// Staff shift structure
 interface Shift {
   id: number;
   user_id: number;
@@ -43,10 +63,15 @@ interface Shift {
   notes: string | null;
 }
 
+// --------------------
+// Main Settings Page Component
+// --------------------
 export default function SettingsPage() {
+  // State for active tab (accounts, shifts, carwash, products)
   const [activeTab, setActiveTab] = useState<
     "accounts" | "shifts" | "carwash" | "products"
   >("shifts");
+  // Auth context for logout and role checks
   const { logout, isManager } = useAuth();
 
   return (
@@ -295,13 +320,22 @@ function ShiftHistory() {
   );
 }
 
+// --------------------
+// Staff Management Tab
+// --------------------
+// Allows managers to view, add, edit, and archive user accounts.
 function StaffManagement() {
   const { isManager } = useAuth();
+  // Loading state for async fetch
   const [loading, setLoading] = useState(true);
+  // List of user accounts
   const [users, setUsers] = useState<AppUser[]>([]);
+  // Modal state for add/edit user
   const [showModal, setShowModal] = useState(false);
+  // Currently editing user (null if adding)
   const [editing, setEditing] = useState<AppUser | null>(null);
 
+  // Fetch all users from API
   const fetchUsers = async () => {
     try {
       setLoading(true);
@@ -319,11 +353,13 @@ function StaffManagement() {
     }
   };
 
+  // Load users on mount (managers only)
   useEffect(() => {
     if (isManager()) fetchUsers();
     else setLoading(false);
   }, [isManager]);
 
+  // Only managers can access this tab
   if (!isManager()) {
     return (
       <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -336,6 +372,7 @@ function StaffManagement() {
 
   if (loading) return <Spinner size="lg" color="amber" label="Loading..." />;
 
+  // Render user management UI
   return (
     <>
       <div className="flex items-center justify-between mb-6">
@@ -715,19 +752,30 @@ interface CarwashPrice {
   created_at: string;
 }
 
+// --------------------
+// Carwash Catalog Tab
+// --------------------
+// Allows managers to view, add, edit, and delete carwash services and prices.
 function CarwashCatalog() {
+  // List of carwash services
   const [services, setServices] = useState<CarwashService[]>([]);
+  // Loading state for async fetch
   const [loading, setLoading] = useState(true);
+  // Currently editing service (null if adding)
   const [editingService, setEditingService] = useState<CarwashService | null>(
     null
   );
+  // Currently editing price (null if not editing)
   const [editingPrice, setEditingPrice] = useState<{
     serviceId: number;
     price: CarwashPrice | null;
   } | null>(null);
+  // Modal state for add/edit service
   const [showServiceModal, setShowServiceModal] = useState(false);
+  // Modal state for add/edit price
   const [showPriceModal, setShowPriceModal] = useState(false);
 
+  // Fetch all carwash services from API
   const fetchServices = async () => {
     try {
       setLoading(true);
@@ -748,10 +796,12 @@ function CarwashCatalog() {
     }
   };
 
+  // Load services on mount
   useEffect(() => {
     fetchServices();
   }, []);
 
+  // Handlers for add/edit/delete service and price
   const handleAddService = () => {
     setEditingService(null);
     setShowServiceModal(true);
@@ -1290,14 +1340,25 @@ interface Product {
   image_url: string | null;
 }
 
+// --------------------
+// Coffee Products Tab
+// --------------------
+// Allows managers to view, add, edit, and delete coffee products.
 function CoffeeProducts() {
+  // List of coffee products
   const [products, setProducts] = useState<Product[]>([]);
+  // Loading state for async fetch
   const [loading, setLoading] = useState(true);
+  // Currently editing product (null if adding)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  // Modal state for add/edit product
   const [showProductModal, setShowProductModal] = useState(false);
+  // Search query for filtering products
   const [searchQuery, setSearchQuery] = useState("");
+  // Selected category for filtering
   const [selectedCategory, setSelectedCategory] = useState("All");
 
+  // Fetch all coffee products from API
   const fetchProducts = async () => {
     try {
       setLoading(true);
@@ -1315,10 +1376,12 @@ function CoffeeProducts() {
     }
   };
 
+  // Load products on mount
   useEffect(() => {
     fetchProducts();
   }, []);
 
+  // Handlers for add/edit/delete product
   const handleAddProduct = () => {
     setEditingProduct(null);
     setShowProductModal(true);

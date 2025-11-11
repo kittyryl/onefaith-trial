@@ -69,7 +69,7 @@ export default function SidebarNav() {
           const ingredients = await response.json();
           const lowStock = ingredients.filter(
             (item: { current_stock: number; required_stock: number }) =>
-              Number(item.current_stock) < Number(item.required_stock) * 0.2
+              Number(item.current_stock) < Number(item.required_stock)
           );
           setLowStockCount(lowStock.length);
         }

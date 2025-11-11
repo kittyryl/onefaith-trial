@@ -10,7 +10,7 @@ import LayoutContent from "@/components/LayoutContent";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  title: "OneFaith POS",
+  title: "OneFaith",
   description: "POS System for OneFaith",
 };
 

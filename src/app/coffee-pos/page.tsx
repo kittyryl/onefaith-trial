@@ -1,8 +1,23 @@
 "use client";
 
+/*
+  Coffee POS Page
+  ---------------
+  This page implements the Point-of-Sale (POS) system for coffee shop operations. It allows staff to:
+    - Browse and search coffee products
+    - Add/remove products to a cart
+    - Select options (e.g., temperature)
+    - Process payments (Cash/Gcash)
+    - Print receipts (with Bluetooth/ESC/POS support)
+    - View and manage current orders
+  ProtectedRoute ensures only authenticated users can access this page.
+  The page uses various utility and UI components for printing, receipt preview, and async data handling.
+*/
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+// Import icons for UI elements
 import {
   LuSearch,
   LuCoffee,
@@ -16,18 +31,22 @@ import {
 } from "react-icons/lu";
 import { toast } from "react-toastify";
 import { v4 as uuidv4 } from "uuid";
-import ProtectedRoute from "@/components/ProtectedRoute";
-import Spinner from "@/components/Spinner";
-import { getAuthHeaders } from "@/lib/auth";
-import { printElementById } from "@/utils/print";
-import { generateCoffeeReceipt } from "@/utils/escpos";
-import { printWithRawBT, canUseRawBT } from "@/utils/rawbt";
-import ESCPOSPreview from "@/components/ESCPOSPreview";
+import ProtectedRoute from "@/components/ProtectedRoute"; // Restricts access to authenticated users
+import Spinner from "@/components/Spinner"; // Loading spinner for async data
+import { getAuthHeaders } from "@/lib/auth"; // Helper for API auth headers
+import { printElementById } from "@/utils/print"; // Utility for printing DOM elements
+import { generateCoffeeReceipt } from "@/utils/escpos"; // ESC/POS receipt generator
+import { printWithRawBT, canUseRawBT } from "@/utils/rawbt"; // Bluetooth printing utilities
+import ESCPOSPreview from "@/components/ESCPOSPreview"; // Receipt preview component
 
-// API base
+// API base URL
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
 
-// Types
+// --------------------
+// Type Definitions
+// --------------------
+
+// Coffee product definition
 interface Product {
   id: number;
   name: string;
@@ -37,6 +56,7 @@ interface Product {
   image_url: string | null;
 }
 
+// Cart item for coffee order
 interface CartItem {
   cartId: string;
   id: number;
@@ -46,6 +66,7 @@ interface CartItem {
   quantity: number;
 }
 
+// Order details for coffee transaction
 interface OrderDetails {
   orderId: string;
   items: CartItem[];

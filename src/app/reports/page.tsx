@@ -1,7 +1,20 @@
 "use client";
 
+/*
+  Reports Page
+  ------------
+  This page provides business analytics and reporting for managers, including:
+    - Most popular carwash services
+    - Cancellation statistics
+    - Revenue by vehicle type
+    - Coffee product sales
+    - Revenue trends over time
+  Data is visualized using charts and tables. Only accessible to managers.
+*/
+
 import { useEffect, useState } from "react";
-import { getAuthHeaders } from "@/lib/auth";
+import { getAuthHeaders } from "@/lib/auth"; // Helper for API auth headers
+// Import charting components for analytics
 import {
   LineChart,
   Line,
@@ -14,11 +27,17 @@ import {
   Bar,
   Legend,
 } from "recharts";
-import Card from "@/components/ui/Card";
-import ManagerOnlyRoute from "@/components/ManagerOnlyRoute";
+import Card from "@/components/ui/Card"; // UI card wrapper
+import ManagerOnlyRoute from "@/components/ManagerOnlyRoute"; // Restricts access to managers
 
+// API base URL
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
 
+// --------------------
+// Type Definitions
+// --------------------
+
+// Most popular carwash service
 interface PopularService {
   service_name: string;
   category: string;
@@ -28,6 +47,7 @@ interface PopularService {
   avg_price: string;
 }
 
+// Cancellation statistics for services
 interface CancellationStats {
   service_name: string;
   times_cancelled: number;
@@ -35,6 +55,7 @@ interface CancellationStats {
   common_reasons: string;
 }
 
+// Revenue by vehicle type and service
 interface ServiceByVehicle {
   vehicle_type: string;
   service_name: string;
@@ -42,11 +63,13 @@ interface ServiceByVehicle {
   revenue: string;
 }
 
+// Revenue trend point
 interface RevenuePoint {
   date: string;
   revenue: number;
 }
 
+// Top-selling coffee product
 interface CoffeeTopProduct {
   product_name: string;
   category: string;
@@ -54,9 +77,15 @@ interface CoffeeTopProduct {
   total_revenue: number;
 }
 
+// --------------------
+// Main Reports Page Component
+// --------------------
 function ReportsPage() {
+  // State for popular carwash services
   const [popularServices, setPopularServices] = useState<PopularService[]>([]);
+  // State for cancellation stats
   const [cancellations, setCancellations] = useState<CancellationStats[]>([]);
+  // State for revenue by vehicle type
   const [servicesByVehicle, setServicesByVehicle] = useState<
     ServiceByVehicle[]
   >([]);

@@ -1,6 +1,15 @@
 "use client";
 
+/*
+  Sales Page
+  ----------
+  This page displays a detailed history of sales transactions, including staff shifts, revenue breakdowns, and itemized order details.
+  It is accessible only to authenticated users (and some sections to managers only).
+  The page fetches transaction data, aggregates revenue, and provides filtering, export, and search features for sales analytics.
+*/
+
 import { useState, useEffect, useCallback } from "react";
+// Import icons for UI elements
 import {
   LuUsers,
   LuFilter,
@@ -14,19 +23,26 @@ import {
   LuSearch,
 } from "react-icons/lu";
 import { toast } from "react-toastify";
-import ProtectedRoute from "@/components/ProtectedRoute";
-import ManagerOnlyRoute from "@/components/ManagerOnlyRoute";
-import PageLoader from "@/components/PageLoader";
-import { getAuthHeaders } from "@/lib/auth";
+import ProtectedRoute from "@/components/ProtectedRoute"; // Restricts access to authenticated users
+import ManagerOnlyRoute from "@/components/ManagerOnlyRoute"; // Restricts access to managers
+import PageLoader from "@/components/PageLoader"; // Loading spinner for async data
+import { getAuthHeaders } from "@/lib/auth"; // Helper for API auth headers
 
+// API base URL
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
 
+// --------------------
+// Type Definitions
+// --------------------
+
+// User info for transaction attribution
 interface User {
   id: number;
   username: string;
   full_name: string;
 }
 
+// Transaction/order structure
 interface Transaction {
   order_id: string;
   created_at: string;
@@ -47,10 +63,17 @@ interface Transaction {
   }[];
 }
 
+// --------------------
+// Main Sales History Component
+// --------------------
 function StaffShiftsHistory() {
+  // State for all transactions
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  // Loading state for async fetches
   const [loading, setLoading] = useState(true);
+  // List of users for filtering/search
   const [users, setUsers] = useState<User[]>([]);
+  // Aggregated revenue stats
   interface Aggregates {
     totalRevenue: number;
     coffeeItemRevenue: number;
