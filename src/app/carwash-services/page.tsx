@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { LuTriangleAlert } from "react-icons/lu";
 import {
   LuCar,
   LuClock,
@@ -49,6 +51,30 @@ type StatusTab = "all" | "queue" | "in_progress" | "completed" | "cancelled";
 
 // --- MAIN COMPONENT ---
 function CarwashServices() {
+  const router = useRouter();
+  const [checkingShift, setCheckingShift] = useState(true);
+  const [hasActiveShift, setHasActiveShift] = useState(false);
+  // Shift check logic (block usage if no active shift)
+  useEffect(() => {
+    const checkShift = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/shifts/current`, {
+          headers: getAuthHeaders(),
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setHasActiveShift(data && data.status === "active");
+        } else {
+          setHasActiveShift(false);
+        }
+      } catch (error) {
+        setHasActiveShift(false);
+      } finally {
+        setCheckingShift(false);
+      }
+    };
+    checkShift();
+  }, []);
   const [orders, setOrders] = useState<CarwashServiceOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<StatusTab>("all");
@@ -346,6 +372,37 @@ function CarwashServices() {
     return `${minutes} min`;
   };
 
+  if (!checkingShift && !hasActiveShift) {
+    return (
+      <div className="fixed inset-0 backdrop-blur-md bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-amber-100 rounded-full mb-6">
+            <LuTriangleAlert size={40} className="text-amber-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-3">
+            No Active Shift
+          </h2>
+          <p className="text-gray-600 mb-6">
+            You must start a shift before using the Carwash Services system.
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => router.push("/")}
+              className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition-colors"
+            >
+              Go to Dashboard
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (loading) return <PageLoader message="Loading services..." color="blue" />;
 
   return (

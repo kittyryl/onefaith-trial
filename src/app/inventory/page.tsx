@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { LuTriangleAlert } from "react-icons/lu";
 import {
   LuPencilLine,
   LuTrash2,
   LuPackage,
   LuPlus,
   LuX,
-  LuSearch,
   LuArrowUpDown,
   LuDownload,
 } from "react-icons/lu";
@@ -36,6 +37,7 @@ interface Ingredient {
   unit_of_measure: string;
   current_stock: number;
   required_stock: number;
+  archived?: boolean;
 }
 
 interface Product {
@@ -78,18 +80,14 @@ interface StockMovementModalProps {
 }
 
 interface ConfirmDeleteModalProps {
-  itemId: number;
-  itemName: string;
+  item: Ingredient | Product;
   onClose: () => void;
-  onConfirm: (id: number) => void;
+  onConfirm: (item: Ingredient | Product) => void;
   activeTab: "ingredients" | "products";
 }
 
-// --- MODAL COMPONENTS ---
-
 function ConfirmDeleteModal({
-  itemId,
-  itemName,
+  item,
   activeTab,
   onClose,
   onConfirm,
@@ -102,8 +100,8 @@ function ConfirmDeleteModal({
           Confirm Deletion
         </h2>
         <p className="text-gray-700 mb-6">
-          Are you sure you want to permanently delete **{itemName}**? This will
-          remove the {type} permanently.
+          Are you sure you want to permanently delete{" "}
+          <strong>{item.name}</strong>? This will remove the {type} permanently.
         </p>
         <div className="flex justify-end space-x-3">
           <button
@@ -113,7 +111,7 @@ function ConfirmDeleteModal({
             Cancel
           </button>
           <button
-            onClick={() => onConfirm(itemId)}
+            onClick={() => onConfirm(item)}
             className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
           >
             Yes, Delete Permanently
@@ -611,6 +609,30 @@ function StockMovementModal({
 
 // --- MAIN PAGE COMPONENT ---
 function Inventory() {
+  const router = useRouter();
+  const [checkingShift, setCheckingShift] = useState(true);
+  const [hasActiveShift, setHasActiveShift] = useState(false);
+  // Shift check logic (block usage if no active shift)
+  useEffect(() => {
+    const checkShift = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/shifts/current`, {
+          headers: getAuthHeaders(),
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setHasActiveShift(data && data.status === "active");
+        } else {
+          setHasActiveShift(false);
+        }
+      } catch (error) {
+        setHasActiveShift(false);
+      } finally {
+        setCheckingShift(false);
+      }
+    };
+    checkShift();
+  }, []);
   // --- History Filter State and Logic ---
   const [historyFilter, setHistoryFilter] = useState({
     from: "",
@@ -650,6 +672,10 @@ function Inventory() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"ingredients" | "history">(
     "ingredients"
+  );
+  // New: ingredient view filter (active/archived)
+  const [ingredientView, setIngredientView] = useState<"active" | "archived">(
+    "active"
   );
   interface InventoryHistory {
     id: number;
@@ -740,20 +766,25 @@ function Inventory() {
 
   // API handlers
 
+  // Fetch ingredients with archived filter
   const fetchAllData = async () => {
     setLoading(true);
     try {
-      const ingResponse = await fetch(`${API_BASE}/api/ingredients`, {
-        headers: getAuthHeaders(),
-      });
-
+      let archivedParam = "";
+      if (ingredientView === "active") archivedParam = "?archived=false";
+      else if (ingredientView === "archived") archivedParam = "?archived=true";
+      const ingResponse = await fetch(
+        `${API_BASE}/api/ingredients${archivedParam}`,
+        {
+          headers: getAuthHeaders(),
+        }
+      );
       const ingData: Ingredient[] = ingResponse.ok
         ? await ingResponse.json()
         : [];
-
       setIngredients(ingData);
     } catch {
-      toast.error("Could not load all inventory data.");
+      toast.error("Could not load inventory data.");
     } finally {
       setLoading(false);
     }
@@ -845,14 +876,61 @@ function Inventory() {
     }
   };
 
+  // Archive / Unarchive helpers
+  const archiveIngredient = async (id: number) => {
+    const url = `${API_BASE}/api/ingredients/${id}/archive`;
+    const res = await fetch(url, { method: "POST", headers: getAuthHeaders() });
+    const text = await res.text();
+    let body: unknown = text;
+    try {
+      body = JSON.parse(text);
+    } catch {}
+    if (!res.ok) {
+      let errMsg = `HTTP ${res.status}`;
+      if (
+        typeof body === "object" &&
+        body !== null &&
+        Object.prototype.hasOwnProperty.call(body, "message") &&
+        typeof (body as { message?: unknown }).message === "string"
+      ) {
+        errMsg = (body as { message: string }).message;
+      }
+      throw new Error(errMsg);
+    }
+    return body;
+  };
+
+  const unarchiveIngredient = async (id: number) => {
+    const url = `${API_BASE}/api/ingredients/${id}/unarchive`;
+    const res = await fetch(url, { method: "POST", headers: getAuthHeaders() });
+    const text = await res.text();
+    let body: unknown = text;
+    try {
+      body = JSON.parse(text);
+    } catch {}
+    if (!res.ok) {
+      let errMsg = `HTTP ${res.status}`;
+      if (
+        typeof body === "object" &&
+        body !== null &&
+        Object.prototype.hasOwnProperty.call(body, "message") &&
+        typeof (body as { message?: unknown }).message === "string"
+      ) {
+        errMsg = (body as { message: string }).message;
+      }
+      throw new Error(errMsg);
+    }
+    return body;
+  };
+
   // Delete item
-  const handleDeleteItem = async (id: number) => {
-    if (!itemToDelete) return;
-    const name = itemToDelete.name;
-    const isIngredient = "required_stock" in itemToDelete;
+  const handleDeleteItem = async (item: Ingredient | Product) => {
+    if (!item) return;
+    const name = item.name;
+    const isIngredient = "required_stock" in item;
     const endpoint = isIngredient
-      ? `/api/ingredients/${id}`
-      : `/api/products/${id}`;
+      ? `/api/ingredients/${item.id}`
+      : `/api/products/${item.id}`;
 
     try {
       const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -866,7 +944,10 @@ function Inventory() {
       }
 
       toast.success(`${name} deleted successfully!`);
-      fetchAllData();
+      // Remove from local state immediately for instant UI update
+      setIngredients((prev) => prev.filter((ing) => ing.id !== item.id));
+      // Optionally, you can still call fetchAllData() in the background if you want to sync
+      // fetchAllData();
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : "An error occurred";
@@ -907,7 +988,7 @@ function Inventory() {
       fetchHistory();
     }
     // eslint-disable-next-line
-  }, [activeTab]);
+  }, [activeTab, ingredientView]);
 
   // Note: Units are shown only in the Unit column; Required/Current show numbers only
 
@@ -925,26 +1006,21 @@ function Inventory() {
     let filtered = ingredients.filter((ing) =>
       ing.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
-
     // Apply category filter
     if (selectedIngredientCategory !== "All") {
       filtered = filtered.filter(
         (ing) => ing.category === selectedIngredientCategory
       );
     }
-
     if (showLowStockOnly) {
-      // Treat strictly less than required as low; equal should be OK
       filtered = filtered.filter(
         (ing) => Number(ing.current_stock) < Number(ing.required_stock)
       );
     }
-
     if (sortColumn) {
       filtered.sort((a, b) => {
         let aVal: string | number = "";
         let bVal: string | number = "";
-
         switch (sortColumn) {
           case "name":
             aVal = a.name.toLowerCase();
@@ -965,13 +1041,11 @@ function Inventory() {
           default:
             return 0;
         }
-
         if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
         if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
         return 0;
       });
     }
-
     return filtered;
   };
 
@@ -1082,26 +1156,58 @@ function Inventory() {
                     <div className="flex items-center justify-end space-x-4">
                       {isManager() && (
                         <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => openEditForm(ingredient)}
-                            className="text-amber-600 hover:text-amber-900 cursor-pointer"
-                          >
-                            <LuPencilLine size={18} />
-                          </button>
-                          <button
-                            onClick={() => openDeleteConfirmation(ingredient)}
-                            className="text-red-600 hover:text-red-900 cursor-pointer"
-                          >
-                            <LuTrash2 size={18} />
-                          </button>
+                          {/* Show edit button only when viewing active */}
+                          {ingredientView === "active" && (
+                            <button
+                              onClick={() => openEditForm(ingredient)}
+                              className="text-amber-600 hover:text-amber-900 cursor-pointer"
+                            >
+                              <LuPencilLine size={18} />
+                            </button>
+                          )}
+                          {/* Delete button removed for archived view since deletion is not allowed if referenced in history */}
                         </div>
                       )}
-                      <button
-                        onClick={() => openMovementModal(ingredient)}
-                        className="bg-amber-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-amber-700 transition-colors shadow-sm"
-                      >
-                        Stock IN/OUT
-                      </button>
+                      {/* Hide Stock IN/OUT for archived ingredients */}
+                      {ingredientView === "active" && (
+                        <button
+                          onClick={() => openMovementModal(ingredient)}
+                          className="bg-amber-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-amber-700 transition-colors shadow-sm"
+                        >
+                          Stock IN/OUT
+                        </button>
+                      )}
+                      {isManager() && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              const isArchived = !!ingredient.archived;
+                              const result = isArchived
+                                ? await unarchiveIngredient(ingredient.id)
+                                : await archiveIngredient(ingredient.id);
+                              console.debug("Archive result", result);
+                              toast.success(
+                                `${ingredient.name} ${
+                                  isArchived ? "unarchived" : "archived"
+                                } successfully!`
+                              );
+                              fetchAllData();
+                            } catch (err: unknown) {
+                              console.error("Archive error", err);
+                              const message =
+                                err instanceof Error
+                                  ? err.message
+                                  : String(err);
+                              toast.error(
+                                `Failed to update archive status: ${message}`
+                              );
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors shadow-sm bg-gray-400 text-white hover:bg-gray-500`}
+                        >
+                          {ingredient.archived ? "Unarchive" : "Archive"}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -1148,13 +1254,45 @@ function Inventory() {
     </div>
   );
 
+  // Shift gating overlay (block UI if no active shift)
+  if (!checkingShift && !hasActiveShift) {
+    return (
+      <div className="fixed inset-0 backdrop-blur-md bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-amber-100 rounded-full mb-6">
+            <LuTriangleAlert size={40} className="text-amber-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-3">
+            No Active Shift
+          </h2>
+          <p className="text-gray-600 mb-6">
+            You must start a shift before using the Inventory system.
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => router.push("/")}
+              className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition-colors"
+            >
+              Go to Dashboard
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              className="flex-1 px-6 py-3 bg-amber-700 text-white rounded-xl font-semibold hover:bg-amber-800 transition-colors"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100 p-4 sm:p-6 lg:p-8">
       {/* Modal Rendering: Delete Confirmation */}
       {isDeleteModalOpen && itemToDelete && (
         <ConfirmDeleteModal
-          itemId={itemToDelete.id!}
-          itemName={itemToDelete.name}
+          item={itemToDelete}
           onClose={() => {
             setIsDeleteModalOpen(false);
             setItemToDelete(null);
@@ -1200,8 +1338,31 @@ function Inventory() {
         {renderTabs()}
         {activeTab === "ingredients" && (
           <>
-            <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-              <div className="flex gap-2">
+            <div className="flex flex-col gap-2 mb-4 md:flex-row md:items-center md:justify-between">
+              {/* Toggle left, buttons right */}
+              <div className="flex gap-2 mb-2 md:mb-0">
+                <button
+                  className={`px-4 py-2 rounded-lg font-semibold text-sm transition-colors border-2 ${
+                    ingredientView === "active"
+                      ? "bg-amber-700 text-white border-amber-700"
+                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
+                  }`}
+                  onClick={() => setIngredientView("active")}
+                >
+                  Active
+                </button>
+                <button
+                  className={`px-4 py-2 rounded-lg font-semibold text-sm transition-colors border-2 ${
+                    ingredientView === "archived"
+                      ? "bg-amber-700 text-white border-amber-700"
+                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
+                  }`}
+                  onClick={() => setIngredientView("archived")}
+                >
+                  Archived
+                </button>
+              </div>
+              <div className="flex gap-2 justify-end">
                 {isManager() && (
                   <button
                     className="inline-flex items-center px-4 py-2 bg-amber-700 text-white rounded-lg font-semibold shadow hover:bg-amber-800 transition-colors"
@@ -1220,7 +1381,6 @@ function Inventory() {
                   <LuDownload className="mr-2" /> Export CSV
                 </button>
               </div>
-              {/* ...search/filter UI... */}
             </div>
             <div className="max-w-7xl mx-auto">{renderIngredientTable()}</div>
           </>
